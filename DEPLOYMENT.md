@@ -20,7 +20,26 @@ cp .env.example .env
 nano .env
 ```
 
-### 3. Deploy
+### 3. Database Setup
+
+**Note:** The database is created automatically on first run!
+
+When the application starts for the first time:
+- The SQLite database (`rose.db`) will be created automatically
+- All migrations will be applied
+- Default settings will be seeded
+- No manual intervention required
+
+The application logs will show:
+```
+[INF] Checking database...
+[INF] Applying migration '...'
+[INF] Database ready
+[INF] Seeding default data...
+[INF] Default data seeded successfully
+```
+
+### 4. Deploy
 ```bash
 # Build and start the service
 docker-compose up -d
@@ -31,7 +50,7 @@ docker-compose logs -f
 # Access at http://your-server:5000
 ```
 
-### 4. Configure Nginx (SSL)
+### 5. Configure Nginx (SSL)
 ```nginx
 server {
     server_name your-domain.com;
@@ -51,7 +70,7 @@ server {
 sudo certbot --nginx -d your-domain.com
 ```
 
-### 5. Configure Second Life Scripts
+### 6. Configure Second Life Scripts
 1. Update `RoseConfig` notecard with your API endpoint
 2. Add scripts to your object
 3. Test!
@@ -76,6 +95,10 @@ dotnet publish -c Release -o /opt/rose-receptionist
 sudo cp rose-receptionist.service /etc/systemd/system/
 sudo systemctl enable rose-receptionist
 sudo systemctl start rose-receptionist
+
+# The database will be created automatically on first run
+# Check the logs to verify:
+sudo journalctl -u rose-receptionist -f
 ```
 
 ### 3. Configure appsettings.json
@@ -115,6 +138,20 @@ curl -X POST http://localhost:5000/api/chat/arrival \
 ```
 
 ### Common Issues
+
+**Issue**: Database initialization errors
+```bash
+# Check logs for database creation issues
+sudo journalctl -u rose-receptionist -f
+
+# Verify database file permissions
+ls -l /opt/rose-receptionist/rose.db
+
+# If database is corrupted, you can safely delete it (backup first!)
+sudo mv /opt/rose-receptionist/rose.db /opt/rose-receptionist/rose.db.backup
+sudo systemctl restart rose-receptionist
+# A fresh database will be created automatically
+```
 
 **Issue**: Database permission errors
 ```bash
