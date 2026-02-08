@@ -9,4 +9,6 @@ public class Setting
 
     [Required]
     public string Value { get; set; } = string.Empty;
+    
+    public string? Description { get; set; }
 }

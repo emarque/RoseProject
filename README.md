@@ -91,6 +91,7 @@ Rose is an intelligent virtual receptionist for Second Life that combines LSL sc
    dotnet build
    dotnet run
    ```
+   **Note:** The database (`rose.db`) is created automatically on first run with default settings. No manual database setup required!
 
 3. **Deploy to Production**
    Use Docker or systemd service (see detailed documentation below).
