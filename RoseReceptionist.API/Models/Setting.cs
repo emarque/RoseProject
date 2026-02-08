@@ -1,0 +1,12 @@
+using System.ComponentModel.DataAnnotations;
+
+namespace RoseReceptionist.API.Models;
+
+public class Setting
+{
+    [Key]
+    public string Key { get; set; } = string.Empty;
+
+    [Required]
+    public string Value { get; set; } = string.Empty;
+}

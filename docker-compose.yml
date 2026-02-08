@@ -1,0 +1,28 @@
+version: '3.8'
+
+services:
+  rose-api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: rose-receptionist-api
+    ports:
+      - "5000:5000"
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Production
+      - ASPNETCORE_URLS=http://+:5000
+      - Anthropic__ApiKey=${ANTHROPIC_API_KEY}
+      - Rose__DefaultOwnerKeys__0=${OWNER_UUID}
+    volumes:
+      - rose-data:/app/data
+      - rose-logs:/app/logs
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5000/swagger/index.html"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+volumes:
+  rose-data:
+  rose-logs:
