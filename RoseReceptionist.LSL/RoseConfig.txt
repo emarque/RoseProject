@@ -1,0 +1,23 @@
+# Rose Receptionist Configuration
+# This notecard should be placed in the same object as the Rose scripts
+
+# Backend API Configuration
+API_ENDPOINT=https://your-vps-domain.com/api
+API_KEY=rose-api-key-12345
+
+# Owner UUIDs (one per line)
+# Add your Second Life avatar UUID here
+OWNER_UUID_1=00000000-0000-0000-0000-000000000000
+OWNER_UUID_2=00000000-0000-0000-0000-000000000000
+
+# Wandering Configuration
+WANDER_ENABLED=TRUE
+WANDER_RADIUS=10
+HOME_POSITION=<128, 128, 25>
+
+# Detection and Greeting
+GREETING_RANGE=10
+CHAT_RANGE=20
+
+# Receptionist Name (what she responds to in chat)
+RECEPTIONIST_NAME=Rose
