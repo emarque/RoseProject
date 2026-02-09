@@ -1,13 +1,19 @@
-# Rose Receptionist - Quick Deployment Guide
+# Rose Receptionist - Deployment Guide
+
+## 🔒 IMPORTANT: API Key Authentication Required
+
+This deployment guide has been updated for the new two-tier API key authentication system. You MUST configure API keys for the system to work.
+
+## Prerequisites
+- Docker and Docker Compose installed (or .NET 8.0 SDK)
+- Domain name pointing to your server
+- **Anthropic API key** (for Claude AI)
+- **Master API key** (generated during setup for system administration)
 
 ## Docker Deployment (Recommended)
 
-### 1. Prerequisites
-- Docker and Docker Compose installed
-- Domain name pointing to your server
-- Anthropic API key
+### 1. Setup Environment
 
-### 2. Setup
 ```bash
 # Clone the repository
 git clone https://github.com/yourusername/RoseProject.git
@@ -15,31 +21,78 @@ cd RoseProject
 
 # Create environment file
 cp .env.example .env
-
-# Edit .env and add your credentials
-nano .env
 ```
 
-### 3. Database Setup
+### 2. Generate Master API Key
+
+**Linux/Mac:**
+```bash
+openssl rand -base64 32
+```
+
+**Windows PowerShell:**
+```powershell
+[Convert]::ToBase64String([System.Security.Cryptography.RandomNumberGenerator]::GetBytes(32))
+```
+
+**Save this key securely!** You'll need it to:
+- Generate subscriber keys
+- Manage subscriber accounts
+- Access system admin features
+
+### 3. Configure Environment Variables
+
+Edit `.env` file:
+```bash
+# Required: System Admin Access
+MASTER_API_KEY=your-generated-master-key-here
+
+# Required: Claude AI
+ANTHROPIC_API_KEY=your-anthropic-key-here
+
+# Optional: Override defaults
+# DATABASE_PATH=./data/rose.db
+# API_PORT=5000
+```
+
+### 4. Update Docker Compose
+
+Ensure `docker-compose.yml` includes the new environment variables:
+```yaml
+version: '3.8'
+services:
+  rose-api:
+    build: .
+    ports:
+      - "5000:5000"
+    environment:
+      - ApiAuthentication__MasterApiKey=${MASTER_API_KEY}
+      - Anthropic__ApiKey=${ANTHROPIC_API_KEY}
+    volumes:
+      - ./data:/app/data
+      - ./logs:/app/logs
+```
+
+### 5. Database Setup
 
 **Note:** The database is created automatically on first run!
 
 When the application starts for the first time:
 - The SQLite database (`rose.db`) will be created automatically
-- All migrations will be applied
+- All migrations including `SubscriberApiKeys` table will be applied
 - Default settings will be seeded
 - No manual intervention required
 
 The application logs will show:
 ```
 [INF] Checking database...
-[INF] Applying migration '...'
+[INF] Applying migration '20260209231549_AddSubscriberApiKeys'
 [INF] Database ready
 [INF] Seeding default data...
 [INF] Default data seeded successfully
 ```
 
-### 4. Deploy
+### 6. Deploy
 ```bash
 # Build and start the service
 docker-compose up -d
@@ -48,6 +101,47 @@ docker-compose up -d
 docker-compose logs -f
 
 # Access at http://your-server:5000
+```
+
+### 7. Verify Installation
+
+Test system admin access with your master key:
+```bash
+curl http://localhost:5000/api/system/status \
+  -H "X-API-Key: your-master-key-here"
+```
+
+**Expected Response:**
+```json
+{
+  "totalSubscribers": 0,
+  "activeSubscribers": 0,
+  "totalRequests": 0,
+  "totalCreditsUsed": 0,
+  "serverTime": "2024-12-20T18:30:00Z",
+  "subscribersByLevel": {}
+}
+```
+
+### 8. Create First Subscriber
+
+Generate a subscriber API key for your first user:
+```bash
+curl http://localhost:5000/api/system/subscribers/generate-key \
+  -X POST \
+  -H "Content-Type: application/json" \
+  -H "X-API-Key: your-master-key-here" \
+  -d '{
+    "subscriberId": "subscriber-001",
+    "subscriberName": "First User",
+    "subscriptionLevel": 2,
+    "creditLimit": 5000
+  }'
+```
+
+Save the returned `apiKey` - you'll provide this to your subscribers.
+
+## Manual Deployment (Without Docker)
 ```
 
 ### 5. Configure Nginx (SSL)
