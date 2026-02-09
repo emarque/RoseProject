@@ -77,33 +77,103 @@ Rose is an intelligent virtual receptionist for Second Life that combines LSL sc
 - Avatar or NPC to host the scripts
 - Build/modify permissions on the object
 
-## 🔒 Security Setup
+## 🔒 Two-Tier API Key Authentication
 
-### Configuring API Credentials
+Rose uses a two-tier authentication system to support multiple paying subscribers:
 
-API credentials are stored **in the script itself** for security, not in the notecard.
+### 1. **Subscriber API Keys** (Customer-Facing)
+For regular subscribers who use Rose in their Second Life locations.
 
-**Why?** LSL scripts can only be viewed by their creator, while notecards can be read by anyone with object permissions.
+### 2. **Master API Key** (System Admin)
+For system administrators to manage subscriber accounts.
 
-### Setup Steps
+---
+
+## 🎫 For Subscribers: Getting Started
+
+### Obtaining Your API Key
+
+Contact your service provider to receive your unique subscriber API key.
+
+### Configuring Your Rose Receptionist
 
 1. In Second Life, right-click your Rose object and select **Edit**
 2. Go to the **Contents** tab
-3. Double-click **RoseReceptionist_Main** to open the script
-4. Find the **SECURITY CONFIGURATION** section at the top
-5. Replace the placeholder values:
-   ```lsl
-   string API_ENDPOINT = "https://rosercp.pantherplays.com/api";
-   string API_KEY = "your-actual-api-key-here";
+3. Find or create a notecard named **RoseConfig**
+4. Add your subscriber key:
    ```
-6. Click **Save**
-7. The script will automatically reset and validate your configuration
+   SUBSCRIBER_KEY=your-subscriber-key-here
+   ```
+5. Save the notecard
+6. Reset the scripts (right-click object → More → Reset Scripts)
 
-### Generating a Secure API Key
+**Your Rose is now ready to use!**
 
-Use one of these methods to generate a strong API key:
+### Subscription Levels
 
-**Linux/Mac:**
+| Level | Name | Monthly Credits | Best For |
+|-------|------|-----------------|----------|
+| 1 | Basic | 1,000 | Small shops, personal offices |
+| 2 | Pro | 5,000 | Busy stores, event venues |
+| 3 | Enterprise | 50,000 | High-traffic locations, multiple sites |
+
+### Credit System
+
+- Each API request (greeting, chat message) consumes 1 credit
+- When credits are exhausted, Rose will stop responding until the next billing cycle
+- Check your credit usage: Touch your Rose object and say "credits"
+- Upgrade your subscription at any time by contacting your provider
+
+### RoseConfig Notecard Reference
+
+```
+# API Configuration
+SUBSCRIBER_KEY=your-subscriber-key-here
+
+# Optional: Custom API endpoint
+# API_ENDPOINT=https://rosercp.pantherplays.com/api
+
+# Owner UUIDs (can have multiple)
+OWNER_UUID=00000000-0000-0000-0000-000000000000
+
+# Advanced Settings
+# GREETING_RANGE=10
+```
+
+---
+
+## 🔐 For System Administrators
+
+### Master API Key Configuration
+
+The master API key is stored **only** in the backend server configuration and grants access to all system administration endpoints.
+
+**Backend Setup (`appsettings.json`):**
+```json
+{
+  "ApiAuthentication": {
+    "MasterApiKey": "your-master-key-here"
+  },
+  "SubscriptionLevels": {
+    "1": {
+      "Name": "Basic",
+      "CreditLimit": 1000
+    },
+    "2": {
+      "Name": "Pro",
+      "CreditLimit": 5000
+    },
+    "3": {
+      "Name": "Enterprise",
+      "CreditLimit": 50000
+    }
+  }
+}
+```
+
+### Generating Secure API Keys
+
+**For Master Key (Linux/Mac):**
 ```bash
 openssl rand -base64 32
 ```
@@ -113,40 +183,140 @@ openssl rand -base64 32
 [Convert]::ToBase64String([System.Security.Cryptography.RandomNumberGenerator]::GetBytes(32))
 ```
 
-**Example output:** `7Hn9Kp2Lm4Qr6Ts8Vw1Xz3Bc5Df7Gh9Jk`
+### System Admin API Endpoints
 
-Add this same key to your backend `appsettings.json`:
+All endpoints require the master API key via `X-API-Key` header.
+
+#### Create New Subscriber
+```http
+POST /api/system/subscribers/generate-key
+Content-Type: application/json
+X-API-Key: your-master-key
+
+{
+  "subscriberId": "customer-123",
+  "subscriberName": "Jane's Boutique",
+  "subscriptionLevel": 2,
+  "notes": "Pro plan - annual billing",
+  "orderNumber": "ORD-2024-001",
+  "creditLimit": 5000,
+  "expiresAt": "2025-12-31T23:59:59Z"
+}
+```
+
+**Response:**
 ```json
 {
-  "ApiAuthentication": {
-    "ApiKey": "7Hn9Kp2Lm4Qr6Ts8Vw1Xz3Bc5Df7Gh9Jk"
+  "id": "guid",
+  "apiKey": "generated-subscriber-key",
+  "subscriberId": "customer-123",
+  "subscriberName": "Jane's Boutique",
+  "subscriptionLevel": 2,
+  "createdAt": "2024-01-15T10:30:00Z",
+  "expiresAt": "2025-12-31T23:59:59Z",
+  "creditLimit": 5000
+}
+```
+
+#### Activate/Deactivate Subscriber
+```http
+PUT /api/system/subscribers/{id}/status
+Content-Type: application/json
+X-API-Key: your-master-key
+
+{
+  "isActive": false
+}
+```
+
+#### List All Subscribers
+```http
+GET /api/system/subscribers?activeOnly=true&level=2
+X-API-Key: your-master-key
+```
+
+#### Get Subscriber Details
+```http
+GET /api/system/subscribers/{id}
+X-API-Key: your-master-key
+```
+
+#### Update Credit Limits
+```http
+PUT /api/system/subscribers/{id}/credits
+Content-Type: application/json
+X-API-Key: your-master-key
+
+{
+  "creditLimit": 10000,
+  "resetUsage": true
+}
+```
+
+#### System Statistics
+```http
+GET /api/system/status
+X-API-Key: your-master-key
+```
+
+**Response:**
+```json
+{
+  "totalSubscribers": 25,
+  "activeSubscribers": 23,
+  "totalRequests": 45230,
+  "totalCreditsUsed": 38942,
+  "serverTime": "2024-01-15T10:30:00Z",
+  "subscribersByLevel": {
+    "1": 10,
+    "2": 12,
+    "3": 3
   }
 }
 ```
 
-## 📝 User Configuration (RoseConfig Notecard)
+#### Recent System Logs
+```http
+GET /api/system/logs?count=50&subscriberName=Jane
+X-API-Key: your-master-key
+```
 
-The `RoseConfig` notecard contains **non-sensitive** settings that users can customize:
+### Using the LSL Admin Menu
 
-- Owner avatar UUIDs
-- Wandering behavior
-- Greeting preferences  
-- Appearance settings
+If you configure your Rose with the master API key in the RoseConfig notecard, you can access system admin functions directly in Second Life:
 
-These settings can be safely shared and modified without exposing your API credentials.
+1. Set `SUBSCRIBER_KEY` to your master key in RoseConfig
+2. Touch your Rose object
+3. Select from the admin menu:
+   - **New API Key**: Generate a new subscriber key
+   - **List Subs**: View all subscribers
+   - **Status**: Check system statistics
+   - **Logs**: View recent activity logs
+   - **Credits**: Manage subscriber credits
 
-## 🔐 Security Benefits
+### Security Best Practices
 
-| Storage Location | Visibility | Use For |
-|-----------------|------------|---------|
-| **LSL Script** | Creator only ✅ | API keys, endpoints, secrets |
-| **Notecard** | Anyone with permissions ⚠️ | User preferences, non-sensitive config |
+1. **Never commit** the master API key to version control
+2. **Use environment variables** or secure secret management in production
+3. **Rotate keys periodically** (at least annually)
+4. **Monitor access logs** for unauthorized attempts
+5. **Keep subscriber keys separate** from master key documentation
+6. **Use HTTPS only** for all API communications
 
-**Users cannot extract your API credentials from the object.**
+---
 
-## Quick Start
+## Prerequisites
 
-### Backend Setup
+### Backend Server
+- .NET 8.0 SDK
+- SQLite
+- VPS or cloud hosting with public HTTPS endpoint
+- Anthropic API key (https://console.anthropic.com/)
+
+### Second Life
+- Land with script permissions
+- Avatar or NPC to host the scripts
+- Build/modify permissions on the object
 
 1. **Configure Settings**
    Edit `RoseReceptionist.API/appsettings.json` and add your Anthropic API key and owner UUIDs.

@@ -1,0 +1,34 @@
+# RoseReceptionist Configuration File
+# This notecard should be placed in the same prim as RoseReceptionist_Main.lsl
+
+# ============================================
+# API CONFIGURATION
+# ============================================
+
+# Your subscriber API key (required)
+# Get this from your service provider
+SUBSCRIBER_KEY=your-subscriber-key-here
+
+# API endpoint (optional - defaults to production)
+# API_ENDPOINT=https://rosercp.pantherplays.com/api
+
+# ============================================
+# OWNER CONFIGURATION
+# ============================================
+
+# Owner UUIDs (can have multiple lines)
+# These avatars will have owner privileges
+# OWNER_UUID=00000000-0000-0000-0000-000000000000
+
+# ============================================
+# ADVANCED SETTINGS
+# ============================================
+
+# Greeting range in meters (optional)
+# GREETING_RANGE=10
+
+# Notes:
+# - Lines starting with # are comments
+# - Empty lines are ignored
+# - Format: KEY=VALUE (no spaces around =)
+# - For system admin access, use master API key as SUBSCRIBER_KEY
