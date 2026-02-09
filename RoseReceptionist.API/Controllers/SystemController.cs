@@ -219,8 +219,9 @@ public class SystemController : ControllerBase
         [FromQuery] int count = 50,
         [FromQuery] string? subscriberName = null)
     {
-        // For now, return activity logs as a proxy for system logs
-        // In a production system, you'd read from actual log files
+        // Note: This returns activity logs as a proxy for system logs
+        // In a production system, you would read from actual log files
+        // or implement a separate logging sink to database
         var logsQuery = _context.ActivityLogs
             .OrderByDescending(a => a.StartTime)
             .Take(count);
@@ -242,10 +243,7 @@ public class SystemController : ControllerBase
     {
         // Generate a secure random API key
         var bytes = new byte[32];
-        using (var rng = RandomNumberGenerator.Create())
-        {
-            rng.GetBytes(bytes);
-        }
+        RandomNumberGenerator.Fill(bytes);
         return Convert.ToBase64String(bytes).Replace("+", "-").Replace("/", "_").TrimEnd('=');
     }
 

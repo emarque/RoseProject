@@ -76,6 +76,7 @@ public class ApiKeyAuthenticationMiddleware
         }
 
         // Check credit limits (only for non-system endpoints)
+        // CreditLimit of 0 means unlimited
         if (subscriberKey.CreditLimit > 0 && subscriberKey.CreditsUsed >= subscriberKey.CreditLimit)
         {
             _logger.LogWarning("Credit limit exceeded for: {SubscriberName}", subscriberKey.SubscriberName);
@@ -88,6 +89,9 @@ public class ApiKeyAuthenticationMiddleware
         context.Items["SubscriberApiKey"] = subscriberKey;
 
         // Update usage statistics
+        // Note: Under high concurrency, this could result in race conditions
+        // For production, consider using atomic database operations or
+        // implementing a separate asynchronous usage tracking queue
         subscriberKey.RequestCount++;
         subscriberKey.LastUsedAt = DateTime.UtcNow;
         

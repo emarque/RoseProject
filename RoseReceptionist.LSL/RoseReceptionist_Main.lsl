@@ -135,16 +135,39 @@ default
         checkAdminAccess();
     }
     
+    timer()
+    {
+        // Clean up menu listeners
+        if (adminMenuListener != 0)
+        {
+            llListenRemove(adminMenuListener);
+            adminMenuListener = 0;
+        }
+        if (adminTextboxListener != 0)
+        {
+            llListenRemove(adminTextboxListener);
+            adminTextboxListener = 0;
+        }
+        llSetTimerEvent(0.0);
+    }
+    
     listen(integer channel, string name, key id, string message)
     {
         if (channel == adminMenuChannel)
         {
             if (message == "New API Key")
             {
-                // Prompt for subscriber name
-                adminTextboxChannel = ((integer)llFrand(999999.0) + 1);
+                // Remove old textbox listener if exists
+                if (adminTextboxListener != 0)
+                {
+                    llListenRemove(adminTextboxListener);
+                }
+                
+                // Prompt for subscriber name with unique channel
+                adminTextboxChannel = (integer)("0x" + llGetSubString((string)llGenerateKey(), 0, 7));
                 adminTextboxListener = llListen(adminTextboxChannel, "", llGetOwner(), "");
                 llTextBox(llGetOwner(), "Enter subscriber name:", adminTextboxChannel);
+                llSetTimerEvent(60.0); // Reset timer for textbox
             }
             else if (message == "List Subs")
             {
@@ -158,19 +181,16 @@ default
             {
                 sendSystemRequest("/system/logs?count=10", "GET", "");
             }
-            else if (message == "Credits")
-            {
-                llOwnerSay("Credit management via menu not yet fully implemented.");
-                llOwnerSay("Use direct API calls to update credits.");
-            }
+            // Removed "Credits" option until functionality is implemented
         }
         else if (channel == adminTextboxChannel && adminTextboxListener != 0)
         {
             // Got subscriber name, generate key
             llListenRemove(adminTextboxListener);
             adminTextboxListener = 0;
+            llSetTimerEvent(0.0);
             
-            string subscriberName = message;
+            string subscriberName = escapeJson(message);
             string json = "{" +
                 "\"subscriberId\":\"" + (string)llGenerateKey() + "\"," +
                 "\"subscriberName\":\"" + subscriberName + "\"," +
@@ -262,12 +282,18 @@ checkAdminAccess()
 
 showAdminMenu()
 {
-    adminMenuChannel = ((integer)llFrand(999999.0) + 1);
+    // Remove old menu listener if exists
+    if (adminMenuListener != 0)
+    {
+        llListenRemove(adminMenuListener);
+    }
+    
+    adminMenuChannel = (integer)("0x" + llGetSubString((string)llGenerateKey(), 0, 7));
     adminMenuListener = llListen(adminMenuChannel, "", llGetOwner(), "");
     
     llDialog(llGetOwner(), 
         "🔑 System Admin Menu\n\nSelect an option:",
-        ["New API Key", "List Subs", "Status", "Logs", "Credits"],
+        ["New API Key", "List Subs", "Status", "Logs"],
         adminMenuChannel);
     
     llSetTimerEvent(60.0); // Auto-close menu after 60 seconds
