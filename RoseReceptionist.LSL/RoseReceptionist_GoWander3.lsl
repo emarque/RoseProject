@@ -43,6 +43,7 @@ integer navigation_start_time = 0;
 integer is_navigating = FALSE;
 integer wander_enabled = TRUE;
 integer is_in_shift = FALSE;
+integer last_report_day = -1; // Track last day report was generated
 
 // Activity data
 string activity_type = "";
@@ -204,7 +205,7 @@ list sortWaypoints(list wp)
 {
     integer i;
     integer j;
-    integer n = llGetListLength(wp) / 4; // Each waypoint has 4 elements
+    integer n = llGetListLength(wp) / 4; // Each waypoint: [key, number, name, position] = 4 elements per waypoint
     
     for (i = 0; i < n - 1; i++)
     {
@@ -217,12 +218,10 @@ list sortWaypoints(list wp)
             {
                 // Swap waypoints
                 key key1 = llList2Key(wp, j * 4);
-                integer num1 = llList2Integer(wp, j * 4 + 1);
                 string name1 = llList2String(wp, j * 4 + 2);
                 vector pos1 = llList2Vector(wp, j * 4 + 3);
                 
                 key key2 = llList2Key(wp, (j + 1) * 4);
-                integer num2 = llList2Integer(wp, (j + 1) * 4 + 1);
                 string name2 = llList2String(wp, (j + 1) * 4 + 2);
                 vector pos2 = llList2Vector(wp, (j + 1) * 4 + 3);
                 
@@ -394,10 +393,10 @@ processWaypoint(key wpKey, vector wpPos)
     else if (activity_type == "sit")
     {
         // Find matching sit prim and sit
-        llOwnerSay("Looking for sit target at " + wpName);
-        
-        // Simplified - assume the waypoint prim itself has a sit target
-        llSitTarget(wpPos, ZERO_ROTATION);
+        // NOTE: For sitting to work properly, the waypoint prim itself should have a sit target configured.
+        // This script cannot set sit targets on other objects, only the object it's in.
+        // The avatar must use llSitOnObject() or the user must manually click to sit.
+        llOwnerSay("Sit action at " + wpName + " - Please ensure waypoint has sit target configured");
         
         // Notify to play sit animation
         if (activity_animation != "")
@@ -574,8 +573,9 @@ default
             startWaypointScan();
         }
         
-        // Check if it's time for daily report
+        // Check if it's time for daily report (only once per day)
         string currentTime = llGetTimestamp();
+        integer day = (integer)llGetSubString(currentTime, 8, 9);
         integer hour = (integer)llGetSubString(currentTime, 11, 12);
         integer minute = (integer)llGetSubString(currentTime, 14, 15);
         
@@ -583,8 +583,9 @@ default
         integer reportHour = llList2Integer(reportTimeParts, 0);
         integer reportMinute = llList2Integer(reportTimeParts, 1);
         
-        if (hour == reportHour && minute == reportMinute)
+        if (hour == reportHour && minute == reportMinute && day != last_report_day)
         {
+            last_report_day = day;
             generateDailyReport();
         }
     }

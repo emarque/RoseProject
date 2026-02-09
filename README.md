@@ -284,7 +284,7 @@ Instead of random wandering, Rose follows a path of numbered waypoint prims (Wan
    Each waypoint prim's **Description** field should contain JSON defining what Rose does at that location:
 
    ```json
-   {"type":"linger","name":"watering plants","orientation":180,"time":45,"animation":"watering","attachments":[{"item":"Can","point":"RightHand"}]}
+   {"type":"linger","name":"watering plants","orientation":180,"time":45,"animation":"watering","attachments":[{"item":"WateringCan","point":"RightHand"}]}
    ```
 
 3. **Action Types**
