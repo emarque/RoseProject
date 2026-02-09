@@ -77,6 +77,73 @@ Rose is an intelligent virtual receptionist for Second Life that combines LSL sc
 - Avatar or NPC to host the scripts
 - Build/modify permissions on the object
 
+## 🔒 Security Setup
+
+### Configuring API Credentials
+
+API credentials are stored **in the script itself** for security, not in the notecard.
+
+**Why?** LSL scripts can only be viewed by their creator, while notecards can be read by anyone with object permissions.
+
+### Setup Steps
+
+1. In Second Life, right-click your Rose object and select **Edit**
+2. Go to the **Contents** tab
+3. Double-click **RoseReceptionist_Main** to open the script
+4. Find the **SECURITY CONFIGURATION** section at the top
+5. Replace the placeholder values:
+   ```lsl
+   string API_ENDPOINT = "https://rosercp.pantherplays.com/api";
+   string API_KEY = "your-actual-api-key-here";
+   ```
+6. Click **Save**
+7. The script will automatically reset and validate your configuration
+
+### Generating a Secure API Key
+
+Use one of these methods to generate a strong API key:
+
+**Linux/Mac:**
+```bash
+openssl rand -base64 32
+```
+
+**PowerShell (Windows):**
+```powershell
+[Convert]::ToBase64String([System.Security.Cryptography.RandomNumberGenerator]::GetBytes(32))
+```
+
+**Example output:** `7Hn9Kp2Lm4Qr6Ts8Vw1Xz3Bc5Df7Gh9Jk`
+
+Add this same key to your backend `appsettings.json`:
+```json
+{
+  "ApiAuthentication": {
+    "ApiKey": "7Hn9Kp2Lm4Qr6Ts8Vw1Xz3Bc5Df7Gh9Jk"
+  }
+}
+```
+
+## 📝 User Configuration (RoseConfig Notecard)
+
+The `RoseConfig` notecard contains **non-sensitive** settings that users can customize:
+
+- Owner avatar UUIDs
+- Wandering behavior
+- Greeting preferences  
+- Appearance settings
+
+These settings can be safely shared and modified without exposing your API credentials.
+
+## 🔐 Security Benefits
+
+| Storage Location | Visibility | Use For |
+|-----------------|------------|---------|
+| **LSL Script** | Creator only ✅ | API keys, endpoints, secrets |
+| **Notecard** | Anyone with permissions ⚠️ | User preferences, non-sensitive config |
+
+**Users cannot extract your API credentials from the object.**
+
 ## Quick Start
 
 ### Backend Setup
@@ -100,8 +167,9 @@ Rose is an intelligent virtual receptionist for Second Life that combines LSL sc
 
 1. Create an object in Second Life
 2. Add all 5 LSL scripts from `RoseReceptionist.LSL/` folder
-3. Create a `RoseConfig` notecard with your API endpoint and settings
-4. Optionally add animations: wave, offer, think, flirt
+3. Edit **RoseReceptionist_Main** script and configure API credentials (see Security Setup above)
+4. Create a `RoseConfig` notecard with owner UUIDs and other settings
+5. Optionally add animations: wave, offer, think, flirt
 
 ## Detailed Documentation
 
@@ -189,10 +257,12 @@ Manage access control list
 
 ### RoseConfig Notecard (Second Life)
 ```
-API_ENDPOINT=https://your-domain.com/api
+# API credentials are configured in the script (secure)
 OWNER_UUID_1=your-uuid-here
+OWNER_UUID_2=your-uuid-here
 WANDER_ENABLED=TRUE
 WANDER_RADIUS=10
+GREETING_RANGE=10
 RECEPTIONIST_NAME=Rose
 ```
 
@@ -204,7 +274,28 @@ RECEPTIONIST_NAME=Rose
 - **Claude timeout**: Check API key and rate limits
 
 ### Second Life Issues
-- **No response**: Verify API_ENDPOINT in RoseConfig
+
+#### ❌ "ERROR: Please configure API_KEY in the script!"
+
+**Cause:** The script still has the default placeholder API key.
+
+**Solution:**
+1. Edit the `RoseReceptionist_Main` script
+2. Update `API_KEY` in the SECURITY CONFIGURATION section
+3. Save the script
+
+#### ⚠️ HTTP Request Fails with 401 Unauthorized
+
+**Cause:** API key in script doesn't match the key in your backend configuration.
+
+**Solution:**
+1. Check your backend `appsettings.json` → `ApiAuthentication:ApiKey`
+2. Compare with the `API_KEY` value in your LSL script
+3. Make sure they match exactly
+4. Restart both the backend service and reset LSL scripts
+
+#### Other Issues
+- **No response**: Verify API_ENDPOINT is configured correctly in the script
 - **No movement**: Enable pathfinding and check permissions
 - **No animations**: Add animations to inventory
 

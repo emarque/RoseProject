@@ -1,9 +1,10 @@
 # Rose Receptionist Configuration
 # This notecard should be placed in the same object as the Rose scripts
 
-# Backend API Configuration
-API_ENDPOINT=https://your-vps-domain.com/api
-API_KEY=rose-api-key-12345
+# =============================================================================
+# SECURITY NOTE: API credentials are configured in the script (secure)
+# This notecard contains only user-customizable settings
+# =============================================================================
 
 # Owner UUIDs (one per line)
 # Add your Second Life avatar UUID here
