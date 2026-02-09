@@ -3,18 +3,19 @@
 // Handles HTTP communication with backend server and coordinates other scripts
 
 // ============================================
-// SECURITY CONFIGURATION
-// Only you (the script creator) can see these values
+// CONFIGURATION
 // ============================================
 
 // Your backend API URL (no trailing slash)
 string API_ENDPOINT = "https://rosercp.pantherplays.com/api";
 
-// Your secure API key - keep this secret!
-// Generate with: openssl rand -base64 32
-string API_KEY = "your-secret-api-key-here";
-
 // ============================================
+// DO NOT HARDCODE API_KEY HERE
+// Set SUBSCRIBER_KEY in RoseConfig notecard instead
+// ============================================
+
+string SUBSCRIBER_KEY = "";
+integer IS_ADMIN_MODE = FALSE;
 
 list OWNER_UUIDS = [];
 integer GREETING_RANGE = 10;
@@ -30,6 +31,17 @@ integer LINK_HTTP_REQUEST = 1004;
 list http_requests = []; // [request_id, type, data]
 integer MAX_RETRIES = 3;
 
+// Notecard reading
+key notecardQuery;
+integer notecardLine = 0;
+string notecardName = "RoseConfig";
+
+// Admin menu state
+integer adminMenuChannel;
+integer adminMenuListener;
+integer adminTextboxChannel;
+integer adminTextboxListener;
+
 // State
 key current_http_request;
 
@@ -39,29 +51,135 @@ default
     {
         llOwnerSay("Rose Receptionist Main Script starting...");
         
-        // Validate API configuration
-        if (API_KEY == "your-secret-api-key-here")
+        // Read configuration from notecard
+        if (llGetInventoryType(notecardName) == INVENTORY_NOTECARD)
         {
-            llOwnerSay("❌ ERROR: Please configure API_KEY in the script!");
-            llOwnerSay("Edit RoseReceptionist_Main and update the SECURITY CONFIGURATION section.");
-            return;
-        }
-        
-        llOwnerSay("✅ Rose Receptionist initialized");
-        llOwnerSay("API Endpoint: " + API_ENDPOINT);
-        
-        // Read additional configuration from notecard
-        if (llGetInventoryType("RoseConfig") == INVENTORY_NOTECARD)
-        {
-            readConfig();
+            llOwnerSay("Reading configuration from " + notecardName + "...");
+            notecardLine = 0;
+            notecardQuery = llGetNotecardLine(notecardName, notecardLine);
         }
         else
         {
-            llOwnerSay("Warning: RoseConfig notecard not found. Using defaults.");
-            llOwnerSay("Please create a RoseConfig notecard with OWNER_UUID and other settings.");
+            llOwnerSay("❌ ERROR: RoseConfig notecard not found!");
+            llOwnerSay("Please create a RoseConfig notecard with SUBSCRIBER_KEY and other settings.");
+        }
+    }
+    
+    dataserver(key query_id, string data)
+    {
+        if (query_id == notecardQuery)
+        {
+            if (data != EOF)
+            {
+                // Process notecard line
+                data = llStringTrim(data, STRING_TRIM);
+                
+                // Skip empty lines and comments
+                if (data != "" && llGetSubString(data, 0, 0) != "#")
+                {
+                    // Parse KEY=VALUE
+                    integer equals = llSubStringIndex(data, "=");
+                    if (equals != -1)
+                    {
+                        string key = llStringTrim(llGetSubString(data, 0, equals - 1), STRING_TRIM);
+                        string value = llStringTrim(llGetSubString(data, equals + 1, -1), STRING_TRIM);
+                        
+                        if (key == "SUBSCRIBER_KEY")
+                        {
+                            SUBSCRIBER_KEY = value;
+                            llOwnerSay("✅ SUBSCRIBER_KEY loaded from notecard");
+                        }
+                        else if (key == "API_ENDPOINT")
+                        {
+                            API_ENDPOINT = value;
+                            llOwnerSay("✅ API_ENDPOINT: " + API_ENDPOINT);
+                        }
+                        else if (key == "OWNER_UUID")
+                        {
+                            OWNER_UUIDS += [value];
+                            llOwnerSay("✅ Added owner: " + value);
+                        }
+                    }
+                }
+                
+                // Read next line
+                ++notecardLine;
+                notecardQuery = llGetNotecardLine(notecardName, notecardLine);
+            }
+            else
+            {
+                // Finished reading notecard
+                if (SUBSCRIBER_KEY == "")
+                {
+                    llOwnerSay("❌ ERROR: SUBSCRIBER_KEY not found in notecard!");
+                    llOwnerSay("Add 'SUBSCRIBER_KEY=your-key-here' to RoseConfig notecard.");
+                    return;
+                }
+                
+                llOwnerSay("✅ Rose Receptionist initialized and ready!");
+                llOwnerSay("Touch to access admin menu (if admin key configured).");
+            }
+        }
+    }
+    
+    touch_start(integer num_detected)
+    {
+        // Check if toucher is owner
+        key toucher = llDetectedKey(0);
+        if (toucher != llGetOwner())
+        {
+            return;
         }
         
-        llOwnerSay("Rose Receptionist is active!");
+        // Check if we're in admin mode
+        checkAdminAccess();
+    }
+    
+    listen(integer channel, string name, key id, string message)
+    {
+        if (channel == adminMenuChannel)
+        {
+            if (message == "New API Key")
+            {
+                // Prompt for subscriber name
+                adminTextboxChannel = ((integer)llFrand(999999.0) + 1);
+                adminTextboxListener = llListen(adminTextboxChannel, "", llGetOwner(), "");
+                llTextBox(llGetOwner(), "Enter subscriber name:", adminTextboxChannel);
+            }
+            else if (message == "List Subs")
+            {
+                sendSystemRequest("/system/subscribers", "GET", "");
+            }
+            else if (message == "Status")
+            {
+                sendSystemRequest("/system/status", "GET", "");
+            }
+            else if (message == "Logs")
+            {
+                sendSystemRequest("/system/logs?count=10", "GET", "");
+            }
+            else if (message == "Credits")
+            {
+                llOwnerSay("Credit management via menu not yet fully implemented.");
+                llOwnerSay("Use direct API calls to update credits.");
+            }
+        }
+        else if (channel == adminTextboxChannel && adminTextboxListener != 0)
+        {
+            // Got subscriber name, generate key
+            llListenRemove(adminTextboxListener);
+            adminTextboxListener = 0;
+            
+            string subscriberName = message;
+            string json = "{" +
+                "\"subscriberId\":\"" + (string)llGenerateKey() + "\"," +
+                "\"subscriberName\":\"" + subscriberName + "\"," +
+                "\"subscriptionLevel\":1," +
+                "\"notes\":\"Created via LSL admin menu\"" +
+                "}";
+            
+            sendSystemRequest("/system/subscribers/generate-key", "POST", json);
+        }
     }
     
     link_message(integer sender, integer num, string msg, key id)
@@ -109,20 +227,73 @@ default
         {
             handleSuccessResponse(request_type, body);
         }
+        else if (status == 401)
+        {
+            llOwnerSay("❌ Authentication failed: Invalid API key");
+        }
+        else if (status == 403)
+        {
+            llOwnerSay("❌ Access forbidden: " + body);
+        }
+        else if (status == 429)
+        {
+            llOwnerSay("❌ Credit limit exceeded: " + body);
+        }
         else
         {
             llOwnerSay("HTTP Error " + (string)status + ": " + body);
-            // Could implement retry logic here
         }
     }
 }
 
+checkAdminAccess()
+{
+    // Try to access system status endpoint to check if we have admin access
+    string url = API_ENDPOINT + "/system/status";
+    
+    key request_id = llHTTPRequest(url,
+        [HTTP_METHOD, "GET",
+         HTTP_CUSTOM_HEADER, "X-API-Key", SUBSCRIBER_KEY,
+         HTTP_BODY_MAXLENGTH, 16384],
+        "");
+    
+    http_requests += [request_id, "admin_check", ""];
+}
+
+showAdminMenu()
+{
+    adminMenuChannel = ((integer)llFrand(999999.0) + 1);
+    adminMenuListener = llListen(adminMenuChannel, "", llGetOwner(), "");
+    
+    llDialog(llGetOwner(), 
+        "🔑 System Admin Menu\n\nSelect an option:",
+        ["New API Key", "List Subs", "Status", "Logs", "Credits"],
+        adminMenuChannel);
+    
+    llSetTimerEvent(60.0); // Auto-close menu after 60 seconds
+}
+
+sendSystemRequest(string endpoint, string method, string json)
+{
+    string url = API_ENDPOINT + endpoint;
+    
+    list params = [HTTP_METHOD, method,
+                   HTTP_CUSTOM_HEADER, "X-API-Key", SUBSCRIBER_KEY,
+                   HTTP_BODY_MAXLENGTH, 16384];
+    
+    if (json != "")
+    {
+        params += [HTTP_MIMETYPE, "application/json"];
+    }
+    
+    key request_id = llHTTPRequest(url, params, json);
+    http_requests += [request_id, "system_" + method, endpoint];
+}
+
 readConfig()
 {
-    // This is a simplified version - full implementation would use dataserver event
-    // API credentials are configured in the script, not in the notecard
-    llOwnerSay("Note: Config reading not fully implemented in this version.");
-    llOwnerSay("Non-sensitive settings can be set in RoseConfig notecard.");
+    // Deprecated: Now handled by dataserver event
+    // Kept for backwards compatibility
 }
 
 sendArrivalRequest(string avatarKey, string avatarName, string location)
@@ -143,7 +314,7 @@ sendArrivalRequest(string avatarKey, string avatarName, string location)
     key request_id = llHTTPRequest(url,
         [HTTP_METHOD, "POST",
          HTTP_MIMETYPE, "application/json",
-         HTTP_CUSTOM_HEADER, "X-API-Key", API_KEY,
+         HTTP_CUSTOM_HEADER, "X-API-Key", SUBSCRIBER_KEY,
          HTTP_BODY_MAXLENGTH, 16384],
         json);
     
@@ -172,7 +343,7 @@ sendChatRequest(string avatarKey, string avatarName, string message, string sess
     key request_id = llHTTPRequest(url,
         [HTTP_METHOD, "POST",
          HTTP_MIMETYPE, "application/json",
-         HTTP_CUSTOM_HEADER, "X-API-Key", API_KEY,
+         HTTP_CUSTOM_HEADER, "X-API-Key", SUBSCRIBER_KEY,
          HTTP_BODY_MAXLENGTH, 16384],
         json);
     
@@ -181,7 +352,20 @@ sendChatRequest(string avatarKey, string avatarName, string message, string sess
 
 handleSuccessResponse(string request_type, string body)
 {
-    if (request_type == "arrival")
+    if (request_type == "admin_check")
+    {
+        // Successfully accessed admin endpoint - enable admin mode
+        IS_ADMIN_MODE = TRUE;
+        llOwnerSay("✅ Admin mode enabled!");
+        showAdminMenu();
+    }
+    else if (request_type == "system_POST" || request_type == "system_GET")
+    {
+        // System API response
+        llOwnerSay("📋 System API Response:");
+        llOwnerSay(body);
+    }
+    else if (request_type == "arrival")
     {
         // Parse arrival response
         // Expected: {"greeting":"...", "role":"...", "shouldNotifyOwners":bool, "sessionId":"..."}
