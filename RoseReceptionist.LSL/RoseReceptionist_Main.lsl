@@ -2,9 +2,21 @@
 // Main control script for Rose Receptionist system
 // Handles HTTP communication with backend server and coordinates other scripts
 
-string API_ENDPOINT = "";
+// ============================================
+// SECURITY CONFIGURATION
+// Only you (the script creator) can see these values
+// ============================================
+
+// Your backend API URL (no trailing slash)
+string API_ENDPOINT = "https://rosercp.pantherplays.com/api";
+
+// Your secure API key - keep this secret!
+// Generate with: openssl rand -base64 32
+string API_KEY = "your-secret-api-key-here";
+
+// ============================================
+
 list OWNER_UUIDS = [];
-string API_KEY = "rose-api-key-12345"; // Change this in production
 integer GREETING_RANGE = 10;
 
 // Link message numbers
@@ -27,7 +39,18 @@ default
     {
         llOwnerSay("Rose Receptionist Main Script starting...");
         
-        // Read configuration from notecard
+        // Validate API configuration
+        if (API_KEY == "your-secret-api-key-here")
+        {
+            llOwnerSay("❌ ERROR: Please configure API_KEY in the script!");
+            llOwnerSay("Edit RoseReceptionist_Main and update the SECURITY CONFIGURATION section.");
+            return;
+        }
+        
+        llOwnerSay("✅ Rose Receptionist initialized");
+        llOwnerSay("API Endpoint: " + API_ENDPOINT);
+        
+        // Read additional configuration from notecard
         if (llGetInventoryType("RoseConfig") == INVENTORY_NOTECARD)
         {
             readConfig();
@@ -35,7 +58,7 @@ default
         else
         {
             llOwnerSay("Warning: RoseConfig notecard not found. Using defaults.");
-            llOwnerSay("Please create a RoseConfig notecard with API_ENDPOINT and OWNER_UUID settings.");
+            llOwnerSay("Please create a RoseConfig notecard with OWNER_UUID and other settings.");
         }
         
         llOwnerSay("Rose Receptionist is active!");
@@ -97,8 +120,9 @@ default
 readConfig()
 {
     // This is a simplified version - full implementation would use dataserver event
+    // API credentials are configured in the script, not in the notecard
     llOwnerSay("Note: Config reading not fully implemented in this version.");
-    llOwnerSay("Set API_ENDPOINT in script directly or via touch menu.");
+    llOwnerSay("Non-sensitive settings can be set in RoseConfig notecard.");
 }
 
 sendArrivalRequest(string avatarKey, string avatarName, string location)
