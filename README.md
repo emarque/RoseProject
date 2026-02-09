@@ -266,6 +266,118 @@ GREETING_RANGE=10
 RECEPTIONIST_NAME=Rose
 ```
 
+## Prim-Based Navigation System
+
+Rose now features an intelligent waypoint navigation system that allows her to patrol specific areas and perform activities at designated locations.
+
+### Overview
+
+Instead of random wandering, Rose follows a path of numbered waypoint prims (Wander0, Wander1, Wander2, etc.) and performs actions defined in each prim's description. This creates realistic work routines like watering plants, checking equipment, or tidying the office.
+
+### Setting Up Waypoints
+
+1. **Create Waypoint Prims**
+   - Create prims in Second Life and name them sequentially: `Wander0`, `Wander1`, `Wander2`, etc.
+   - Rose will visit them in numerical order, looping back to the start after completing all waypoints.
+
+2. **Configure Waypoint Actions**
+   Each waypoint prim's **Description** field should contain JSON defining what Rose does at that location:
+
+   ```json
+   {"type":"linger","name":"watering plants","orientation":180,"time":45,"animation":"watering","attachments":[{"item":"WateringCan","point":"RightHand"}]}
+   ```
+
+3. **Action Types**
+   
+   **Transient** - Pass through without stopping
+   ```json
+   {"type":"transient","name":"walking through hallway"}
+   ```
+   
+   **Linger** - Stop, face direction, play animation, wait
+   ```json
+   {"type":"linger","name":"checking computer","orientation":90,"time":30,"animation":"typing"}
+   ```
+   
+   **Sit** - Sit at the location with optional animation
+   ```json
+   {"type":"sit","name":"taking a break","time":60,"animation":"sit_relaxed"}
+   ```
+
+4. **JSON Field Reference**
+   - `type` (required): "transient", "linger", or "sit"
+   - `name` (required): Activity description (e.g., "watering plants")
+   - `orientation` (optional): Direction to face in degrees (0-360)
+   - `time` (optional): Duration in seconds
+   - `animation` (optional): Animation name from inventory
+   - `attachments` (optional): Array of items to attach (e.g., tools, props)
+
+### Example Setup
+
+Here's a complete example of a 4-waypoint patrol route:
+
+**Wander0** - Reception Desk
+```json
+{"type":"linger","name":"greeting visitors","orientation":0,"time":20}
+```
+
+**Wander1** - Break Room
+```json
+{"type":"linger","name":"making coffee","orientation":270,"time":30,"animation":"pouring"}
+```
+
+**Wander2** - Office Plants
+```json
+{"type":"linger","name":"watering plants","orientation":180,"time":45,"animation":"watering","attachments":[{"item":"WateringCan","point":"RightHand"}]}
+```
+
+**Wander3** - Hallway
+```json
+{"type":"transient","name":"walking to next area"}
+```
+
+### Activity Tracking & Reports
+
+Rose automatically tracks all activities and generates daily reports:
+
+- **Activity Logs**: Every action is logged with timestamp, location, and duration
+- **Daily Reports**: At the end of shift (configurable time), Rose generates a summary using Claude AI
+- **"What are you doing?"**: Rose can respond in chat with her current activity
+
+### Configuration Options
+
+Update `RoseConfig.txt` with these new settings:
+
+```
+# Wandering Configuration
+WANDER_ENABLED=TRUE
+WANDER_SENSOR_RANGE=50        # How far to scan for waypoints
+WANDER_SCAN_INTERVAL=5        # How often to scan for new waypoints
+
+# Shift and Reporting
+SHIFT_START_TIME=09:00        # When Rose's workday begins
+SHIFT_END_TIME=17:00          # When Rose's workday ends
+DAILY_REPORT_TIME=17:05       # When to generate end-of-day report
+```
+
+### API Endpoints for Activity Tracking
+
+The backend now includes these new endpoints:
+
+- `POST /api/reports/activities` - Log a new activity
+- `PUT /api/reports/activities/{id}/complete` - Complete an activity
+- `GET /api/reports/activities/current` - Get Rose's current activity
+- `GET /api/reports/activities/date/{date}` - Get all activities for a specific date
+- `POST /api/reports/daily` - Generate daily report with Claude AI summary
+
+### Tips for Best Results
+
+1. **Spacing**: Place waypoints 5-10 meters apart for natural walking
+2. **Line of Sight**: Ensure waypoints are within sensor range (50m default)
+3. **Permissions**: Verify pathfinding is enabled on your land
+4. **Animations**: Add custom animations to Rose's inventory for variety
+5. **Activity Names**: Use descriptive names for better daily reports
+
 ## Troubleshooting
 
 ### Backend Issues
