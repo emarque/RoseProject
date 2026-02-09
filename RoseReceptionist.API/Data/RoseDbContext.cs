@@ -13,6 +13,8 @@ public class RoseDbContext : DbContext
     public DbSet<Message> Messages { get; set; }
     public DbSet<ConversationContext> ConversationHistory { get; set; }
     public DbSet<Setting> Settings { get; set; }
+    public DbSet<ActivityLog> ActivityLogs { get; set; }
+    public DbSet<DailyReport> DailyReports { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -36,5 +38,16 @@ public class RoseDbContext : DbContext
         // Configure Setting
         modelBuilder.Entity<Setting>()
             .HasKey(e => e.Key);
+
+        // Configure ActivityLog
+        modelBuilder.Entity<ActivityLog>()
+            .HasIndex(e => e.StartTime);
+
+        modelBuilder.Entity<ActivityLog>()
+            .HasIndex(e => new { e.StartTime, e.EndTime });
+
+        // Configure DailyReport
+        modelBuilder.Entity<DailyReport>()
+            .HasIndex(e => e.ReportDate);
     }
 }

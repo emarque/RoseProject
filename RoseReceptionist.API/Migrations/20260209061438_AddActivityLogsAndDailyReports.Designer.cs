@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using RoseReceptionist.API.Data;
 
@@ -10,9 +11,11 @@ using RoseReceptionist.API.Data;
 namespace RoseReceptionist.API.Migrations
 {
     [DbContext(typeof(RoseDbContext))]
-    partial class RoseDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260209061438_AddActivityLogsAndDailyReports")]
+    partial class AddActivityLogsAndDailyReports
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder.HasAnnotation("ProductVersion", "8.0.11");

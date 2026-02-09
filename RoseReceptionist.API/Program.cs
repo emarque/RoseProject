@@ -35,6 +35,7 @@ builder.Services.AddScoped<ConversationContextService>();
 builder.Services.AddScoped<ClaudeService>();
 builder.Services.AddScoped<PersonalityService>();
 builder.Services.AddScoped<MessageQueueService>();
+builder.Services.AddScoped<DailyReportService>();
 
 // Add CORS
 builder.Services.AddCors(options =>
