@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using RoseReceptionist.API.Data;
+using RoseReceptionist.API.Middleware;
 using RoseReceptionist.API.Models;
 using RoseReceptionist.API.Services;
 using Serilog;
@@ -87,6 +88,8 @@ if (app.Environment.IsDevelopment())
 app.UseSerilogRequestLogging();
 
 app.UseCors();
+
+app.UseApiKeyAuthentication();
 
 app.UseHttpsRedirection();
 

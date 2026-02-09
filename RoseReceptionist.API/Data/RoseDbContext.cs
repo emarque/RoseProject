@@ -15,6 +15,7 @@ public class RoseDbContext : DbContext
     public DbSet<Setting> Settings { get; set; }
     public DbSet<ActivityLog> ActivityLogs { get; set; }
     public DbSet<DailyReport> DailyReports { get; set; }
+    public DbSet<SubscriberApiKey> SubscriberApiKeys { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -49,5 +50,16 @@ public class RoseDbContext : DbContext
         // Configure DailyReport
         modelBuilder.Entity<DailyReport>()
             .HasIndex(e => e.ReportDate);
+
+        // Configure SubscriberApiKey
+        modelBuilder.Entity<SubscriberApiKey>()
+            .HasIndex(e => e.ApiKey)
+            .IsUnique();
+
+        modelBuilder.Entity<SubscriberApiKey>()
+            .HasIndex(e => e.SubscriberId);
+
+        modelBuilder.Entity<SubscriberApiKey>()
+            .HasIndex(e => e.IsActive);
     }
 }

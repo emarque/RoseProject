@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Mvc;
+using RoseReceptionist.API.Authorization;
 using RoseReceptionist.API.Models;
 using RoseReceptionist.API.Services;
 
@@ -6,6 +7,7 @@ namespace RoseReceptionist.API.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
+[RequireSubscriberKey]
 public class ChatController : ControllerBase
 {
     private readonly ClaudeService _claudeService;

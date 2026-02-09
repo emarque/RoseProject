@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using RoseReceptionist.API.Authorization;
 using RoseReceptionist.API.Data;
 using RoseReceptionist.API.Models;
 using RoseReceptionist.API.Services;
@@ -8,6 +9,7 @@ namespace RoseReceptionist.API.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
+[RequireSubscriberKey]
 public class ConfigController : ControllerBase
 {
     private readonly PersonalityService _personalityService;
