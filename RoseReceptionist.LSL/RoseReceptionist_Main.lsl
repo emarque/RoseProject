@@ -20,6 +20,7 @@ integer IS_ADMIN_MODE = FALSE;
 list OWNER_UUIDS = [];
 list OWNER_NAMES = [];
 integer GREETING_RANGE = 10;
+string RECEPTIONIST_NAME = "Rose";
 
 // Link message numbers
 integer LINK_SENSOR_DETECTED = 1000;
@@ -27,6 +28,7 @@ integer LINK_CHAT_MESSAGE = 1001;
 integer LINK_SPEAK = 1002;
 integer LINK_ANIMATION = 1003;
 integer LINK_HTTP_REQUEST = 1004;
+integer LINK_TRAINING_START = 3000;
 
 // HTTP request tracking
 list http_requests = []; // [request_id, type, data]
@@ -42,6 +44,10 @@ integer adminMenuChannel;
 integer adminMenuListener;
 integer adminTextboxChannel;
 integer adminTextboxListener;
+
+// User menu state
+integer userMenuChannel;
+integer userMenuListener;
 
 // State
 key current_http_request;
@@ -81,6 +87,42 @@ showAdminMenu()
         adminMenuChannel);
     
     llSetTimerEvent(60.0); // Auto-close menu after 60 seconds
+}
+
+showUserMenu(key user, string userName)
+{
+    // Remove old menu listener if exists
+    if (userMenuListener != 0)
+    {
+        llListenRemove(userMenuListener);
+    }
+    
+    userMenuChannel = -1000 - (integer)llFrand(9999);
+    userMenuListener = llListen(userMenuChannel, "", user, "");
+    
+    llDialog(user, 
+        "Hi! I'm " + RECEPTIONIST_NAME + ". How can I help you?",
+        ["Get Attention", "Training Mode", "Cancel"],
+        userMenuChannel);
+    
+    llSetTimerEvent(60.0); // Auto-close menu after 60 seconds
+}
+
+integer isAdmin(key user)
+{
+    // Check if user is owner
+    if (user == llGetOwner())
+    {
+        return TRUE;
+    }
+    
+    // Check if user is in OWNER_UUIDS list
+    if (llListFindList(OWNER_UUIDS, [(string)user]) != -1)
+    {
+        return TRUE;
+    }
+    
+    return FALSE;
 }
 
 sendSystemRequest(string endpoint, string method, string json)
@@ -308,6 +350,11 @@ default
                             integer ownerNum = (integer)llGetSubString(configKey, 11, -1);
                             llOwnerSay("✅ Owner #" + (string)ownerNum + " name: " + value);
                         }
+                        else if (configKey == "RECEPTIONIST_NAME")
+                        {
+                            RECEPTIONIST_NAME = value;
+                            llOwnerSay("✅ RECEPTIONIST_NAME: " + RECEPTIONIST_NAME);
+                        }
                     }
                 }
                 
@@ -333,15 +380,24 @@ default
     
     touch_start(integer num_detected)
     {
-        // Check if toucher is owner
         key toucher = llDetectedKey(0);
-        if (toucher != llGetOwner())
-        {
-            return;
-        }
+        string name = llDetectedName(0);
         
-        // Check if we're in admin mode
-        checkAdminAccess();
+        // Check if admin (owner or in OWNER_UUIDS list)
+        if (IS_ADMIN_MODE && isAdmin(toucher))
+        {
+            showAdminMenu();
+        }
+        else if (toucher == llGetOwner())
+        {
+            // Owner but not admin mode - try to check admin access
+            checkAdminAccess();
+        }
+        else
+        {
+            // Regular user - show user menu
+            showUserMenu(toucher, name);
+        }
     }
     
     timer()
@@ -356,6 +412,11 @@ default
         {
             llListenRemove(adminTextboxListener);
             adminTextboxListener = 0;
+        }
+        if (userMenuListener != 0)
+        {
+            llListenRemove(userMenuListener);
+            userMenuListener = 0;
         }
         llSetTimerEvent(0.0);
     }
@@ -391,6 +452,47 @@ default
                 sendSystemRequest("/system/logs?count=10", "GET", "");
             }
             // Removed "Credits" option until functionality is implemented
+        }
+        else if (channel == userMenuChannel)
+        {
+            if (message == "Get Attention")
+            {
+                // Trigger attention-getting behavior
+                llRegionSayTo(link_id, 0, "You have my attention! How can I help you?");
+                llMessageLinked(LINK_SET, LINK_ANIMATION, "wave", NULL_KEY);
+                
+                // Clean up listener
+                if (userMenuListener != 0)
+                {
+                    llListenRemove(userMenuListener);
+                    userMenuListener = 0;
+                }
+                llSetTimerEvent(0.0);
+            }
+            else if (message == "Training Mode")
+            {
+                // Start training wizard
+                llRegionSayTo(link_id, 0, "Starting training mode...");
+                llMessageLinked(LINK_SET, LINK_TRAINING_START, name, link_id);
+                
+                // Clean up listener
+                if (userMenuListener != 0)
+                {
+                    llListenRemove(userMenuListener);
+                    userMenuListener = 0;
+                }
+                llSetTimerEvent(0.0);
+            }
+            else if (message == "Cancel")
+            {
+                // Just close menu
+                if (userMenuListener != 0)
+                {
+                    llListenRemove(userMenuListener);
+                    userMenuListener = 0;
+                }
+                llSetTimerEvent(0.0);
+            }
         }
         else if (channel == adminTextboxChannel && adminTextboxListener != 0)
         {
