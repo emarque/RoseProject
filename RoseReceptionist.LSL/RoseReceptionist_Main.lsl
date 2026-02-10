@@ -18,6 +18,7 @@ string SUBSCRIBER_KEY = "";
 integer IS_ADMIN_MODE = FALSE;
 
 list OWNER_UUIDS = [];
+list OWNER_NAMES = [];
 integer GREETING_RANGE = 10;
 
 // Link message numbers
@@ -81,23 +82,35 @@ default
                     integer equals = llSubStringIndex(data, "=");
                     if (equals != -1)
                     {
-                        string key = llStringTrim(llGetSubString(data, 0, equals - 1), STRING_TRIM);
+                        string configKey = llStringTrim(llGetSubString(data, 0, equals - 1), STRING_TRIM);
                         string value = llStringTrim(llGetSubString(data, equals + 1, -1), STRING_TRIM);
                         
-                        if (key == "SUBSCRIBER_KEY")
+                        if (configKey == "SUBSCRIBER_KEY")
                         {
                             SUBSCRIBER_KEY = value;
                             llOwnerSay("✅ SUBSCRIBER_KEY loaded from notecard");
                         }
-                        else if (key == "API_ENDPOINT")
+                        else if (configKey == "API_ENDPOINT")
                         {
                             API_ENDPOINT = value;
                             llOwnerSay("✅ API_ENDPOINT: " + API_ENDPOINT);
                         }
-                        else if (key == "OWNER_UUID")
+                        else if (configKey == "OWNER_UUID")
                         {
                             OWNER_UUIDS += [value];
                             llOwnerSay("✅ Added owner: " + value);
+                        }
+                        else if (llSubStringIndex(configKey, "OWNER_UUID_") == 0)
+                        {
+                            // Support OWNER_UUID_1, OWNER_UUID_2, etc.
+                            OWNER_UUIDS += [value];
+                            llOwnerSay("✅ Added owner: " + value);
+                        }
+                        else if (llSubStringIndex(configKey, "OWNER_NAME_") == 0)
+                        {
+                            // Support OWNER_NAME_1, OWNER_NAME_2, etc.
+                            OWNER_NAMES += [value];
+                            llOwnerSay("✅ Added owner name: " + value);
                         }
                     }
                 }
