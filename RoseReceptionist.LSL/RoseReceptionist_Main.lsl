@@ -44,6 +44,7 @@ integer adminMenuChannel;
 integer adminMenuListener;
 integer adminTextboxChannel;
 integer adminTextboxListener;
+key currentAdminUser;
 
 // User menu state
 integer userMenuChannel;
@@ -56,8 +57,17 @@ key current_http_request;
 // USER-DEFINED FUNCTIONS
 // ============================================
 
-checkAdminAccess()
+checkAdminAccess(key user)
 {
+    if (SUBSCRIBER_KEY == "")
+    {
+        llRegionSayTo(user, 0, "⚠️ No admin access - SUBSCRIBER_KEY not configured.");
+        return;
+    }
+    
+    // Store the user who initiated the admin check
+    currentAdminUser = user;
+    
     // Try to access system status endpoint to check if we have admin access
     string url = API_ENDPOINT + "/system/status";
     
@@ -70,7 +80,7 @@ checkAdminAccess()
     http_requests += [http_request_id, "admin_check", ""];
 }
 
-showAdminMenu()
+showAdminMenu(key user)
 {
     // Remove old menu listener if exists
     if (adminMenuListener != 0)
@@ -78,12 +88,12 @@ showAdminMenu()
         llListenRemove(adminMenuListener);
     }
     
-    adminMenuChannel = (integer)("0x" + llGetSubString((string)llGenerateKey(), 0, 7));
-    adminMenuListener = llListen(adminMenuChannel, "", llGetOwner(), "");
+    adminMenuChannel = -1000 - (integer)llFrand(9999);
+    adminMenuListener = llListen(adminMenuChannel, "", user, "");
     
-    llDialog(llGetOwner(), 
-        "🔑 System Admin Menu\n\nSelect an option:",
-        ["New API Key", "List Subs", "Status", "Logs"],
+    llDialog(user,
+        "🔧 Rose Admin Menu\n\nManage API keys and view system status.",
+        ["New API Key", "List Subs", "Status", "Logs", "Close"],
         adminMenuChannel);
     
     llSetTimerEvent(60.0); // Auto-close menu after 60 seconds
@@ -117,9 +127,15 @@ integer isAdmin(key user)
     }
     
     // Check if user is in OWNER_UUIDS list
-    if (llListFindList(OWNER_UUIDS, [(string)user]) != -1)
+    // Convert to lowercase for case-insensitive comparison
+    string userUUID = llToLower((string)user);
+    integer i;
+    for (i = 0; i < llGetListLength(OWNER_UUIDS); i++)
     {
-        return TRUE;
+        if (llToLower(llList2String(OWNER_UUIDS, i)) == userUUID)
+        {
+            return TRUE;
+        }
     }
     
     return FALSE;
@@ -215,8 +231,8 @@ handleSuccessResponse(string request_type, string body)
     {
         // Successfully accessed admin endpoint - enable admin mode
         IS_ADMIN_MODE = TRUE;
-        llOwnerSay("✅ Admin mode enabled!");
-        showAdminMenu();
+        llRegionSayTo(currentAdminUser, 0, "✅ Admin mode enabled!");
+        showAdminMenu(currentAdminUser);
     }
     else if (request_type == "system_POST" || request_type == "system_GET")
     {
@@ -333,15 +349,25 @@ default
                         }
                         else if (configKey == "OWNER_UUID")
                         {
-                            OWNER_UUIDS += [value];
-                            llOwnerSay("✅ Added owner: " + value);
+                            // Trim whitespace and store UUID
+                            value = llStringTrim(value, STRING_TRIM);
+                            if (value != "" && value != "00000000-0000-0000-0000-000000000000")
+                            {
+                                OWNER_UUIDS += [llToLower(value)];
+                                llOwnerSay("✅ Added owner: " + value);
+                            }
                         }
                         else if (llSubStringIndex(configKey, "OWNER_UUID_") == 0)
                         {
                             // Support OWNER_UUID_1, OWNER_UUID_2, etc.
-                            OWNER_UUIDS += [value];
-                            integer ownerNum = (integer)llGetSubString(configKey, 11, -1);
-                            llOwnerSay("✅ Owner #" + (string)ownerNum + " UUID: " + value);
+                            // Trim whitespace and store UUID
+                            value = llStringTrim(value, STRING_TRIM);
+                            if (value != "" && value != "00000000-0000-0000-0000-000000000000")
+                            {
+                                OWNER_UUIDS += [llToLower(value)];
+                                integer ownerNum = (integer)llGetSubString(configKey, 11, -1);
+                                llOwnerSay("✅ Owner #" + (string)ownerNum + " UUID: " + value);
+                            }
                         }
                         else if (llSubStringIndex(configKey, "OWNER_NAME_") == 0)
                         {
@@ -383,19 +409,15 @@ default
         key toucher = llDetectedKey(0);
         string name = llDetectedName(0);
         
-        // Check if admin (owner or in OWNER_UUIDS list)
-        if (IS_ADMIN_MODE && isAdmin(toucher))
+        // Check if user is admin (owner or in OWNER_UUIDS list)
+        if (isAdmin(toucher))
         {
-            showAdminMenu();
-        }
-        else if (toucher == llGetOwner())
-        {
-            // Owner but not admin mode - try to check admin access
-            checkAdminAccess();
+            // Show admin menu
+            checkAdminAccess(toucher);
         }
         else
         {
-            // Regular user - show user menu
+            // Show user menu
             showUserMenu(toucher, name);
         }
     }
@@ -421,7 +443,7 @@ default
         llSetTimerEvent(0.0);
     }
     
-    listen(integer channel, string name, key link_id, string message)
+    listen(integer channel, string name, key id, string message)
     {
         if (channel == adminMenuChannel)
         {
@@ -435,8 +457,8 @@ default
                 
                 // Prompt for subscriber name with unique channel
                 adminTextboxChannel = (integer)("0x" + llGetSubString((string)llGenerateKey(), 0, 7));
-                adminTextboxListener = llListen(adminTextboxChannel, "", llGetOwner(), "");
-                llTextBox(llGetOwner(), "Enter subscriber name:", adminTextboxChannel);
+                adminTextboxListener = llListen(adminTextboxChannel, "", id, "");
+                llTextBox(id, "Enter subscriber name:", adminTextboxChannel);
                 llSetTimerEvent(60.0); // Reset timer for textbox
             }
             else if (message == "List Subs")
@@ -451,6 +473,16 @@ default
             {
                 sendSystemRequest("/system/logs?count=10", "GET", "");
             }
+            else if (message == "Close")
+            {
+                // Close admin menu
+                if (adminMenuListener != 0)
+                {
+                    llListenRemove(adminMenuListener);
+                    adminMenuListener = 0;
+                }
+                llSetTimerEvent(0.0);
+            }
             // Removed "Credits" option until functionality is implemented
         }
         else if (channel == userMenuChannel)
@@ -460,6 +492,9 @@ default
                 // Trigger attention-getting behavior
                 llRegionSayTo(id, 0, "You have my attention! How can I help you?");
                 llMessageLinked(LINK_SET, LINK_ANIMATION, "wave", NULL_KEY);
+                
+                // Start conversation
+                llMessageLinked(LINK_SET, LINK_CHAT_MESSAGE, (string)id + "|" + name + "|Hello|", NULL_KEY);
                 
                 // Clean up listener
                 if (userMenuListener != 0)
