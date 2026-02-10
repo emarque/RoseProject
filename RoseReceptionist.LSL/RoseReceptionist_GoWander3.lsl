@@ -9,6 +9,9 @@
 string API_ENDPOINT = "https://rosercp.pantherplays.com/api";
 string API_KEY = "your-api-key-here";
 
+// Waypoint prefix (configurable via notecard)
+string WAYPOINT_PREFIX = "Waypoint";
+
 // Link messages
 integer LINK_WANDERING_STATE = 2000;
 integer LINK_ACTIVITY_UPDATE = 2001;
@@ -25,6 +28,11 @@ integer NAVIGATION_TIMEOUT = 60; // seconds
 string SHIFT_START_TIME = "09:00";
 string SHIFT_END_TIME = "17:00";
 string DAILY_REPORT_TIME = "17:05";
+
+// Notecard reading
+key notecardQuery;
+integer notecardLine = 0;
+string notecardName = "RoseConfig";
 
 // ============================================================================
 // STATE VARIABLES
@@ -188,13 +196,14 @@ list parseWaypointJSON(string json)
     return result;
 }
 
-// Extract number from waypoint name (Wander0, Wander1, etc.)
+// Extract number from waypoint name (e.g., <prefix>0, <prefix>1, etc.)
+// Uses the configurable WAYPOINT_PREFIX
 integer extractWaypointNumber(string name)
 {
-    integer wanderPos = llSubStringIndex(name, "Wander");
-    if (wanderPos != -1)
+    integer prefixPos = llSubStringIndex(name, WAYPOINT_PREFIX);
+    if (prefixPos != -1)
     {
-        string numStr = llGetSubString(name, wanderPos + 6, -1);
+        string numStr = llGetSubString(name, prefixPos + llStringLength(WAYPOINT_PREFIX), -1);
         return (integer)numStr;
     }
     return -1;
@@ -324,10 +333,29 @@ generateDailyReport()
 // NAVIGATION FUNCTIONS
 // ============================================================================
 
+createPathfindingCharacter()
+{
+    llCreateCharacter([
+        CHARACTER_TYPE, CHARACTER_TYPE_A,
+        CHARACTER_MAX_SPEED, 2.0,
+        CHARACTER_DESIRED_SPEED, 1.5,
+        CHARACTER_RADIUS, 0.5,
+        CHARACTER_LENGTH, 1.0
+    ]);
+    llOwnerSay("✅ Pathfinding character created");
+}
+
 startWaypointScan()
 {
     llOwnerSay("Scanning for waypoints...");
     llSensor("", NULL_KEY, PASSIVE | ACTIVE, SENSOR_RANGE, PI);
+}
+
+initializeNavigation()
+{
+    createPathfindingCharacter();
+    llOwnerSay("Scanning for " + WAYPOINT_PREFIX + "[0-9]+ prims...");
+    startWaypointScan();
 }
 
 processWaypoint(key wpKey, vector wpPos)
@@ -446,7 +474,7 @@ moveToNextWaypoint()
     string waypoint_name = llList2String(waypoints, current_waypoint_index * 4 + 2);
     current_target_pos = llList2Vector(waypoints, current_waypoint_index * 4 + 3);
     
-    llOwnerSay("Moving to " + waypoint_name + " (Wander" + (string)waypoint_num + ")");
+    llOwnerSay("Moving to " + waypoint_name + " (" + WAYPOINT_PREFIX + (string)waypoint_num + ")");
     
     // Start navigation
     list options = [
@@ -473,10 +501,67 @@ default
     state_entry()
     {
         llOwnerSay("Rose Prim-Based Navigation System active");
-        llOwnerSay("Scanning for Wander[0-9]+ prims...");
         
-        // Start by scanning for waypoints
-        startWaypointScan();
+        // Read configuration from notecard
+        if (llGetInventoryType(notecardName) == INVENTORY_NOTECARD)
+        {
+            llOwnerSay("Reading configuration from " + notecardName + "...");
+            notecardLine = 0;
+            notecardQuery = llGetNotecardLine(notecardName, notecardLine);
+        }
+        else
+        {
+            llOwnerSay("No RoseConfig notecard found, using defaults");
+            initializeNavigation();
+        }
+    }
+    
+    dataserver(key query_id, string data)
+    {
+        if (query_id == notecardQuery)
+        {
+            if (data != EOF)
+            {
+                // Process notecard line
+                data = llStringTrim(data, STRING_TRIM);
+                
+                // Skip empty lines and comments
+                if (data != "" && llGetSubString(data, 0, 0) != "#")
+                {
+                    // Parse KEY=VALUE
+                    integer equals = llSubStringIndex(data, "=");
+                    if (equals != -1)
+                    {
+                        string configKey = llStringTrim(llGetSubString(data, 0, equals - 1), STRING_TRIM);
+                        string value = llStringTrim(llGetSubString(data, equals + 1, -1), STRING_TRIM);
+                        
+                        if (configKey == "WAYPOINT_PREFIX")
+                        {
+                            WAYPOINT_PREFIX = value;
+                            llOwnerSay("✅ WAYPOINT_PREFIX: " + WAYPOINT_PREFIX);
+                        }
+                        else if (configKey == "API_ENDPOINT")
+                        {
+                            API_ENDPOINT = value;
+                        }
+                        else if (configKey == "API_KEY" || configKey == "SUBSCRIBER_KEY")
+                        {
+                            API_KEY = value;
+                        }
+                    }
+                }
+                
+                // Read next line
+                ++notecardLine;
+                notecardQuery = llGetNotecardLine(notecardName, notecardLine);
+            }
+            else
+            {
+                // Finished reading notecard
+                llOwnerSay("Configuration loaded.");
+                initializeNavigation();
+            }
+        }
     }
     
     sensor(integer num)
@@ -490,8 +575,8 @@ default
         {
             string name = llDetectedName(i);
             
-            // Check if this is a Wander waypoint
-            if (llSubStringIndex(name, "Wander") == 0)
+            // Check if this is a waypoint with the configured prefix
+            if (llSubStringIndex(name, WAYPOINT_PREFIX) == 0)
             {
                 integer wpNum = extractWaypointNumber(name);
                 
@@ -520,7 +605,7 @@ default
         }
         else
         {
-            llOwnerSay("No Wander waypoints found. Will retry in 30 seconds.");
+            llOwnerSay("No " + WAYPOINT_PREFIX + " waypoints found. Will retry in 30 seconds.");
             llSetTimerEvent(30.0);
         }
     }
@@ -687,5 +772,17 @@ default
     on_rez(integer start_param)
     {
         llResetScript();
+    }
+    
+    changed(integer change)
+    {
+        if (change & CHANGED_INVENTORY)
+        {
+            if (llGetInventoryType("RoseConfig") == INVENTORY_NOTECARD)
+            {
+                llOwnerSay("🔄 Configuration updated, reloading...");
+                llResetScript();
+            }
+        }
     }
 }

@@ -27,6 +27,10 @@ SUBSCRIBER_KEY=your-subscriber-key-here
 # Greeting range in meters (optional)
 # GREETING_RANGE=10
 
+# Waypoint prefix for navigation (optional - defaults to "Waypoint")
+# Change this if your waypoint prims are named differently
+# WAYPOINT_PREFIX=Waypoint
+
 # Notes:
 # - Lines starting with # are comments
 # - Empty lines are ignored
