@@ -20,6 +20,25 @@ integer SESSION_TIMEOUT = 1800; // 30 minutes
 key current_speaker = NULL_KEY;
 integer waiting_for_response = FALSE;
 
+string getOrCreateSession(key avatar_uuid)
+{
+    // Look for existing session
+    integer idx = llListFindList(active_sessions, [avatar_uuid]);
+    
+    if (idx != -1)
+    {
+        // Update timestamp
+        active_sessions = llListReplaceList(active_sessions, [llGetUnixTime()], idx + 2, idx + 2);
+        return llList2String(active_sessions, idx + 1);
+    }
+    
+    // Create new session
+    string sessionId = (string)llGenerateKey();
+    active_sessions += [avatar_uuid, sessionId, llGetUnixTime()];
+    
+    return sessionId;
+}
+
 default
 {
     state_entry()
@@ -144,23 +163,4 @@ default
     {
         llResetScript();
     }
-}
-
-string getOrCreateSession(key avatar_uuid)
-{
-    // Look for existing session
-    integer idx = llListFindList(active_sessions, [avatar_uuid]);
-    
-    if (idx != -1)
-    {
-        // Update timestamp
-        active_sessions = llListReplaceList(active_sessions, [llGetUnixTime()], idx + 2, idx + 2);
-        return llList2String(active_sessions, idx + 1);
-    }
-    
-    // Create new session
-    string sessionId = (string)llGenerateKey();
-    active_sessions += [avatar_uuid, sessionId, llGetUnixTime()];
-    
-    return sessionId;
 }

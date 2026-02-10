@@ -628,7 +628,17 @@ default
         else if (msg == "TOGGLE_WANDER")
         {
             wander_enabled = !wander_enabled;
-            llOwnerSay("Wandering " + (string)(wander_enabled ? "enabled" : "disabled"));
+            
+            string status;
+            if (wander_enabled)
+            {
+                status = "enabled";
+            }
+            else
+            {
+                status = "disabled";
+            }
+            llOwnerSay("Wandering " + status);
             
             if (!wander_enabled)
             {
