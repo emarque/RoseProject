@@ -51,10 +51,6 @@ integer userMenuListener;
 // State
 key current_http_request;
 
-// Touch tracking for key verification
-key currentTouchUser = NULL_KEY;
-string currentTouchUserName = "";
-
 // ============================================
 // USER-DEFINED FUNCTIONS
 // ============================================
@@ -129,10 +125,6 @@ checkMasterKeyAndShowMenu(key toucher, string name)
         return;
     }
     
-    // Store who touched for later
-    currentTouchUser = toucher;
-    currentTouchUserName = name;
-    
     // Try to access a system endpoint to verify master key
     string url = API_ENDPOINT + "/system/status";
     
@@ -142,7 +134,8 @@ checkMasterKeyAndShowMenu(key toucher, string name)
          HTTP_BODY_MAXLENGTH, 16384],
         "");
     
-    http_requests += [http_request_id, "key_check", ""];
+    // Store toucher info with request for thread-safety
+    http_requests += [http_request_id, "key_check", (string)toucher + "|" + name];
 }
 
 sendSystemRequest(string endpoint, string method, string json)
@@ -229,12 +222,15 @@ sendChatRequest(string avatarKey, string avatarName, string message, string sess
     http_requests += [http_request_id, "chat", avatarKey];
 }
 
-handleSuccessResponse(string request_type, string body)
+handleSuccessResponse(string request_type, string request_data, string body)
 {
     if (request_type == "key_check")
     {
         // Successfully accessed system endpoint - we have master key
-        showAdminMenu(currentTouchUser);
+        // Extract toucher info from request_data
+        list parts = llParseString2List(request_data, ["|"], []);
+        key toucher = (key)llList2String(parts, 0);
+        showAdminMenu(toucher);
     }
     else if (request_type == "system_POST" || request_type == "system_GET")
     {
@@ -296,20 +292,25 @@ string escapeJson(string str)
     return str;
 }
 
-handleErrorResponse(integer status, string request_type)
+handleErrorResponse(integer status, string request_type, string request_data, string body)
 {
     if (request_type == "key_check")
     {
+        // Extract toucher info from request_data
+        list parts = llParseString2List(request_data, ["|"], []);
+        key toucher = (key)llList2String(parts, 0);
+        string name = llList2String(parts, 1);
+        
         if (status == 401)
         {
             // Not a master key, show user menu instead
-            showUserMenu(currentTouchUser, currentTouchUserName);
+            showUserMenu(toucher, name);
         }
         else
         {
             // Other error, default to user menu
-            llRegionSayTo(currentTouchUser, 0, "⚠️ Could not verify API key, showing user menu");
-            showUserMenu(currentTouchUser, currentTouchUserName);
+            llRegionSayTo(toucher, 0, "⚠️ Could not verify API key, showing user menu");
+            showUserMenu(toucher, name);
         }
     }
     else if (status == 401)
@@ -318,15 +319,15 @@ handleErrorResponse(integer status, string request_type)
     }
     else if (status == 403)
     {
-        llOwnerSay("❌ Access forbidden");
+        llOwnerSay("❌ Access forbidden: " + body);
     }
     else if (status == 429)
     {
-        llOwnerSay("❌ Credit limit exceeded");
+        llOwnerSay("❌ Credit limit exceeded: " + body);
     }
     else
     {
-        llOwnerSay("HTTP Error " + (string)status);
+        llOwnerSay("HTTP Error " + (string)status + ": " + body);
     }
 }
 
@@ -653,11 +654,11 @@ default
         
         if (status == 200)
         {
-            handleSuccessResponse(request_type, body);
+            handleSuccessResponse(request_type, request_data, body);
         }
         else
         {
-            handleErrorResponse(status, request_type);
+            handleErrorResponse(status, request_type, request_data, body);
         }
     }
     
