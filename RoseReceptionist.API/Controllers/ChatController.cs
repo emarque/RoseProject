@@ -59,7 +59,8 @@ public class ChatController : ControllerBase
                 accessEntry.Role,
                 accessEntry.PersonalityNotes,
                 accessEntry.FavoriteDrink,
-                request.SessionId);
+                request.SessionId,
+                request.Transcript);
 
             await _conversationService.SaveConversationAsync(
                 request.AvatarKey,

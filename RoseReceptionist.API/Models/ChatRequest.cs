@@ -7,6 +7,7 @@ public class ChatRequest
     public string Message { get; set; } = string.Empty;
     public string Location { get; set; } = string.Empty;
     public Guid SessionId { get; set; }
+    public string? Transcript { get; set; } = null;
 }
 
 public class ArrivalRequest
