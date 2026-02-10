@@ -379,27 +379,21 @@ showAttachmentsMenu()
 
 finalizeWaypoint()
 {
-    // Generate JSON for this waypoint
+    vector wpPos = llList2Vector(found_waypoints, current_waypoint_index * 4 + 3);
     string json = generateWaypointJSON();
-    waypoint_configs += [json];
-    
-    // Output to chat with adjusted waypoint number
     integer outputNumber = current_wp_number + waypoint_number_offset;
-    llRegionSayTo(training_user, 0, "WAYPOINT" + (string)outputNumber + "=" + json);
+    string configLine = "WAYPOINT" + (string)outputNumber + "=" + (string)wpPos + "|" + json;
+    waypoint_configs += [configLine];
     
-    // Move to next waypoint
     current_waypoint_index++;
-    
     if (current_waypoint_index * 4 < llGetListLength(found_waypoints))
     {
-        // Configure next waypoint
         resetCurrentWaypoint();
         current_wp_number = llList2Integer(found_waypoints, current_waypoint_index * 4 + 1);
         showTypeMenu();
     }
     else
     {
-        // All waypoints configured
         completeTraining();
     }
 }
@@ -420,34 +414,25 @@ completeTraining()
     clearListeners();
     llSetTimerEvent(0.0);
     
-    integer waypointCount = llGetListLength(waypoint_configs);
+    llRegionSayTo(training_user, 0, "✅ Training complete! Copy config below:");
     
-    llRegionSayTo(training_user, 0, "\n✅ Training complete! Configured " + 
-                  (string)waypointCount + " waypoints.");
-    
-    if (training_mode == "APPEND")
+    string allConfigs = "\n";
+    integer i;
+    for (i = 0; i < llGetListLength(waypoint_configs); i++)
     {
-        llRegionSayTo(training_user, 0, "\n📝 Mode: ADD NEW");
-        llRegionSayTo(training_user, 0, "Copy the WAYPOINT lines above and ADD them to the existing entries in [WPP]WaypointConfig notecard.");
-    }
-    else
-    {
-        llRegionSayTo(training_user, 0, "\n📝 Mode: REPLACE ALL");
-        llRegionSayTo(training_user, 0, "Copy the WAYPOINT lines above and REPLACE the contents of [WPP]WaypointConfig notecard.");
+        allConfigs += llList2String(waypoint_configs, i);
+        if (i < llGetListLength(waypoint_configs) - 1)
+        {
+            allConfigs += "\n";
+        }
     }
     
-    llRegionSayTo(training_user, 0, "The scripts will automatically reload when you save the notecard.");
+    llRegionSayTo(training_user, 0, allConfigs);
+    llRegionSayTo(training_user, 0, "📝 Paste into [WPP]WaypointConfig notecard");
     
-    llOwnerSay("Training session completed by " + training_user_name + " (" + training_mode + " mode)");
-    
-    // Reset for next session
     training_user = NULL_KEY;
-    training_user_name = "";
     found_waypoints = [];
     waypoint_configs = [];
-    current_waypoint_index = 0;
-    waypoint_number_offset = 0;
-    existing_waypoint_count = 0;
 }
 
 cancelTraining()
@@ -466,6 +451,8 @@ cancelTraining()
     found_waypoints = [];
     waypoint_configs = [];
     current_waypoint_index = 0;
+    waypoint_number_offset = 0;
+    existing_waypoint_count = 0;
     resetCurrentWaypoint();
 }
 
