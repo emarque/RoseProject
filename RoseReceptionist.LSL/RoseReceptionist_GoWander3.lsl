@@ -341,16 +341,16 @@ processWaypoint(key wpKey, vector wpPos)
     list wpData = parseWaypointJSON(wpDesc);
     
     activity_type = llList2String(wpData, 0);
-    activity_name = llList2String(wpData, 1);
+    current_activity_name = llList2String(wpData, 1);
     activity_orientation = llList2Integer(wpData, 2);
     activity_duration = llList2Integer(wpData, 3);
     activity_animation = llList2String(wpData, 4);
     string attachments_json = llList2String(wpData, 5);
     
-    llOwnerSay("Waypoint: " + wpName + " - " + activity_name + " (" + activity_type + ")");
+    llOwnerSay("Waypoint: " + wpName + " - " + current_activity_name + " (" + activity_type + ")");
     
     // Log activity start
-    logActivity(activity_name, activity_type, wpName, activity_orientation, activity_animation, attachments_json);
+    logActivity(current_activity_name, activity_type, wpName, activity_orientation, activity_animation, attachments_json);
     activity_start_time = llGetUnixTime();
     
     // Handle different action types
@@ -658,7 +658,7 @@ default
         else if (llSubStringIndex(msg, "WHAT_DOING") == 0)
         {
             // Respond with current activity
-            string response = "I'm currently " + activity_name;
+            string response = "I'm currently " + current_activity_name;
             if (activity_type == "linger")
                 response += " at " + llList2String(waypoints, current_waypoint_index * 4 + 2);
             
