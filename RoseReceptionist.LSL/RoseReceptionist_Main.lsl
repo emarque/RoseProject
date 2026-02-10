@@ -15,7 +15,6 @@ string API_ENDPOINT = "https://rosercp.pantherplays.com/api";
 // ============================================
 
 string SUBSCRIBER_KEY = "";
-integer IS_ADMIN_MODE = FALSE;
 
 list OWNER_UUIDS = [];
 list OWNER_NAMES = [];
@@ -44,7 +43,6 @@ integer adminMenuChannel;
 integer adminMenuListener;
 integer adminTextboxChannel;
 integer adminTextboxListener;
-key currentAdminUser;
 
 // User menu state
 integer userMenuChannel;
@@ -56,29 +54,6 @@ key current_http_request;
 // ============================================
 // USER-DEFINED FUNCTIONS
 // ============================================
-
-checkAdminAccess(key user)
-{
-    if (SUBSCRIBER_KEY == "")
-    {
-        llRegionSayTo(user, 0, "⚠️ No admin access - SUBSCRIBER_KEY not configured.");
-        return;
-    }
-    
-    // Store the user who initiated the admin check
-    currentAdminUser = user;
-    
-    // Try to access system status endpoint to check if we have admin access
-    string url = API_ENDPOINT + "/system/status";
-    
-    key http_request_id = llHTTPRequest(url,
-        [HTTP_METHOD, "GET",
-         HTTP_CUSTOM_HEADER, "X-API-Key", SUBSCRIBER_KEY,
-         HTTP_BODY_MAXLENGTH, 16384],
-        "");
-    
-    http_requests += [http_request_id, "admin_check", ""];
-}
 
 showAdminMenu(key user)
 {
@@ -227,14 +202,7 @@ sendChatRequest(string avatarKey, string avatarName, string message, string sess
 
 handleSuccessResponse(string request_type, string body)
 {
-    if (request_type == "admin_check")
-    {
-        // Successfully accessed admin endpoint - enable admin mode
-        IS_ADMIN_MODE = TRUE;
-        llRegionSayTo(currentAdminUser, 0, "✅ Admin mode enabled!");
-        showAdminMenu(currentAdminUser);
-    }
-    else if (request_type == "system_POST" || request_type == "system_GET")
+    if (request_type == "system_POST" || request_type == "system_GET")
     {
         // System API response
         llOwnerSay("📋 System API Response:");
@@ -409,15 +377,12 @@ default
         key toucher = llDetectedKey(0);
         string name = llDetectedName(0);
         
-        // Check if user is admin (owner or in OWNER_UUIDS list)
         if (isAdmin(toucher))
         {
-            // Show admin menu
-            checkAdminAccess(toucher);
+            showAdminMenu(toucher);
         }
         else
         {
-            // Show user menu
             showUserMenu(toucher, name);
         }
     }
@@ -449,6 +414,12 @@ default
         {
             if (message == "New API Key")
             {
+                if (SUBSCRIBER_KEY == "")
+                {
+                    llRegionSayTo(id, 0, "❌ Error: SUBSCRIBER_KEY not configured");
+                    return;
+                }
+                
                 // Remove old textbox listener if exists
                 if (adminTextboxListener != 0)
                 {
@@ -463,14 +434,29 @@ default
             }
             else if (message == "List Subs")
             {
+                if (SUBSCRIBER_KEY == "")
+                {
+                    llRegionSayTo(id, 0, "❌ Error: SUBSCRIBER_KEY not configured");
+                    return;
+                }
                 sendSystemRequest("/system/subscribers", "GET", "");
             }
             else if (message == "Status")
             {
+                if (SUBSCRIBER_KEY == "")
+                {
+                    llRegionSayTo(id, 0, "❌ Error: SUBSCRIBER_KEY not configured");
+                    return;
+                }
                 sendSystemRequest("/system/status", "GET", "");
             }
             else if (message == "Logs")
             {
+                if (SUBSCRIBER_KEY == "")
+                {
+                    llRegionSayTo(id, 0, "❌ Error: SUBSCRIBER_KEY not configured");
+                    return;
+                }
                 sendSystemRequest("/system/logs?count=10", "GET", "");
             }
             else if (message == "Close")
@@ -602,7 +588,7 @@ default
         }
         else if (status == 401)
         {
-            llOwnerSay("❌ Authentication failed: Invalid API key");
+            llOwnerSay("❌ Authentication failed: Invalid or insufficient API key privileges");
         }
         else if (status == 403)
         {
