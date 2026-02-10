@@ -196,7 +196,8 @@ list parseWaypointJSON(string json)
     return result;
 }
 
-// Extract number from waypoint name (Waypoint0, Waypoint1, etc.)
+// Extract number from waypoint name (e.g., <prefix>0, <prefix>1, etc.)
+// Uses the configurable WAYPOINT_PREFIX
 integer extractWaypointNumber(string name)
 {
     integer prefixPos = llSubStringIndex(name, WAYPOINT_PREFIX);
