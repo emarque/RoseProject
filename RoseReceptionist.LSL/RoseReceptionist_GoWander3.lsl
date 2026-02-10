@@ -210,7 +210,7 @@ integer extractWaypointNumber(string name)
 }
 
 // Sort waypoints by number (bubble sort - simple for small lists)
-list sortWaypoints(list wp)
+list sortWaypointsByNumber(list wp)
 {
     integer i;
     integer j;
@@ -341,7 +341,7 @@ createPathfindingCharacter()
         CHARACTER_DESIRED_SPEED, 1.5,
         CHARACTER_RADIUS, 0.5,
         CHARACTER_LENGTH, 1.0,
-        CHARACTER_ORIENTATION, CHARACTER_ORIENTATION_FORWARD,
+        CHARACTER_ORIENTATION_AND_VELOCITY, TRUE,
         CHARACTER_AVOIDANCE_MODE, AVOID_CHARACTERS | AVOID_DYNAMIC_OBSTACLES
     ]);
     llOwnerSay("✅ Pathfinding character created");
@@ -566,42 +566,46 @@ default
         }
     }
     
-    sensor(integer num)
+    sensor(integer num_detected)
     {
         waypoints = [];
         integer i;
-        
-        llOwnerSay("Found " + (string)num + " objects");
-        
-        for (i = 0; i < num; i++)
+        for (i = 0; i < num_detected; i++)
         {
-            string name = llDetectedName(i);
+            string primName = llDetectedName(i);
+            string primNameLower = llToLower(primName);
+            string prefixLower = llToLower(WAYPOINT_PREFIX);
             
-            // Check if this is a waypoint with the configured prefix
-            if (llSubStringIndex(name, WAYPOINT_PREFIX) == 0)
+            // Case-insensitive prefix check
+            if (llSubStringIndex(primNameLower, prefixLower) == 0)
             {
-                integer wpNum = extractWaypointNumber(name);
+                // Extract remainder after prefix
+                string remainder = llGetSubString(primName, llStringLength(WAYPOINT_PREFIX), -1);
                 
-                if (wpNum != -1)
+                // Trim spaces: "Waypoint 1" -> "1"
+                remainder = llStringTrim(remainder, STRING_TRIM_HEAD);
+                
+                // Parse number
+                integer wpNumber = (integer)remainder;
+                
+                // Validate (handles "0" case)
+                if (wpNumber > 0 || remainder == "0")
                 {
                     key wpKey = llDetectedKey(i);
                     vector wpPos = llDetectedPos(i);
                     
-                    waypoints += [wpKey, wpNum, name, wpPos];
-                    llOwnerSay("Found waypoint: " + name + " (" + (string)wpNum + ")");
+                    waypoints += [wpKey, wpNumber, primName, wpPos];
+                    llOwnerSay("✓ Found: " + primName + " (#" + (string)wpNumber + ")");
                 }
             }
         }
         
-        // Sort waypoints by number
+        waypoints = sortWaypointsByNumber(waypoints);
+        llOwnerSay("📍 Total: " + (string)(llGetListLength(waypoints) / 4));
+        
+        // Start navigation to first waypoint
         if (llGetListLength(waypoints) > 0)
         {
-            waypoints = sortWaypoints(waypoints);
-            
-            integer num_wp = llGetListLength(waypoints) / 4;
-            llOwnerSay("Sorted " + (string)num_wp + " waypoints");
-            
-            // Start navigation to first waypoint
             current_waypoint_index = -1;
             moveToNextWaypoint();
         }
