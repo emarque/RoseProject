@@ -71,6 +71,15 @@ list parseWaypointJSON(string json)
     // Simple JSON parser for LSL
     // Expected format: {"type":"linger","name":"watering plants","orientation":180,"time":45,"animation":"watering","attachments":[{"item":"Can","point":"RightHand"}]}
     
+    json = llStringTrim(json, STRING_TRIM);
+    
+    // Check if it's just a number (simple mode)
+    integer justNumber = (integer)json;
+    if ((string)justNumber == json || (justNumber > 0 && llStringLength(json) <= 4))
+    {
+        return ["linger", "pausing", -1, justNumber, "", ""];
+    }
+    
     list result = [];
     
     // Extract type
@@ -327,6 +336,7 @@ createPathfindingCharacter()
         CHARACTER_TYPE, CHARACTER_TYPE_A,
         CHARACTER_MAX_SPEED, 2.0,
         CHARACTER_DESIRED_SPEED, 1.5,
+        CHARACTER_DESIRED_TURN_SPEED, 1.8,
         CHARACTER_RADIUS, 0.5,
         CHARACTER_LENGTH, 1.0,
         CHARACTER_AVOIDANCE_MODE, AVOID_CHARACTERS | AVOID_DYNAMIC_OBSTACLES
