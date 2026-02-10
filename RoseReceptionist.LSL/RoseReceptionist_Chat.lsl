@@ -23,7 +23,7 @@ integer waiting_for_response = FALSE;
 // Conversation tracking for transcript mode
 list conversation_participants = []; // List of avatar keys in current conversation
 list conversation_transcript = []; // [speaker_name, message, speaker_name, message, ...]
-integer MAX_TRANSCRIPT_MESSAGES = 10; // Keep last 10 messages (5 exchanges)
+integer MAX_TRANSCRIPT_MESSAGES = 10; // Keep last 10 messages total (user + Rose messages)
 integer CONVERSATION_TIMEOUT = 60; // 60 seconds of silence ends conversation
 integer last_message_time = 0;
 
@@ -41,12 +41,6 @@ integer isMessageForRose(string message, key speaker_id)
     
     // Currently in active conversation with this speaker
     if (llListFindList(conversation_participants, [speaker_id]) != -1)
-    {
-        return TRUE;
-    }
-    
-    // Message is from the current speaker and we're waiting
-    if (current_speaker == speaker_id && !waiting_for_response)
     {
         return TRUE;
     }

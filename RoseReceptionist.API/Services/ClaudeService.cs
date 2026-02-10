@@ -11,6 +11,8 @@ public class ClaudeService
     private readonly IConfiguration _configuration;
     private readonly ILogger<ClaudeService> _logger;
     private readonly ConversationContextService _conversationService;
+    
+    private const string TRANSCRIPT_INSTRUCTION = "\n\nRespond naturally to the conversation above.";
 
     public ClaudeService(
         IConfiguration configuration,
@@ -71,7 +73,7 @@ public class ClaudeService
                     new ClaudeMessage
                     {
                         Role = "user",
-                        Content = transcript + "\n\nRespond naturally to the conversation above."
+                        Content = transcript + TRANSCRIPT_INSTRUCTION
                     }
                 };
             }
