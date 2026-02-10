@@ -117,7 +117,7 @@ default
         checkAnimations();
     }
     
-    link_message(integer sender, integer num, string msg, key id)
+    link_message(integer sender, integer num, string msg, key link_id)
     {
         if (num == LINK_ANIMATION)
         {

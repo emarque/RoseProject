@@ -27,14 +27,14 @@ default
         integer i;
         for (i = 0; i < num_detected; i++)
         {
-            key avatarKey = llDetectedKey(i);
+            key avatar_uuid = llDetectedKey(i);
             string avatarName = llDetectedName(i);
             
             // Skip if this is the object owner (Rose herself)
-            if (avatarKey == llGetOwner()) jump continue;
+            if (avatar_uuid == llGetOwner()) jump continue;
             
             // Check if we've already greeted this avatar recently
-            integer idx = llListFindList(greeted_avatars, [avatarKey]);
+            integer idx = llListFindList(greeted_avatars, [avatar_uuid]);
             if (idx != -1)
             {
                 // Check if greeting has timed out
@@ -52,15 +52,15 @@ default
             
             // New avatar or timeout expired - greet them
             string location = llGetRegionName() + " " + (string)llGetPos();
-            string message = (string)avatarKey + "|" + avatarName + "|" + location;
+            string message = (string)avatar_uuid + "|" + avatarName + "|" + location;
             
             llMessageLinked(LINK_SET, LINK_SENSOR_DETECTED, message, NULL_KEY);
             
             // Add to greeted list with current timestamp
-            greeted_avatars += [avatarKey, llGetUnixTime()];
+            greeted_avatars += [avatar_uuid, llGetUnixTime()];
             
             // Stop wandering when greeting someone
-            llMessageLinked(LINK_SET, LINK_WANDERING_STATE, "GREETING", avatarKey);
+            llMessageLinked(LINK_SET, LINK_WANDERING_STATE, "GREETING", avatar_uuid);
             
             llOwnerSay("Detected: " + avatarName);
             
@@ -74,7 +74,7 @@ default
         // This is handled by the wandering script
     }
     
-    link_message(integer sender, integer num, string msg, key id)
+    link_message(integer sender, integer num, string msg, key link_id)
     {
         if (msg == "CLEAR_GREETED")
         {
@@ -103,12 +103,12 @@ default
         
         for (i = 0; i < llGetListLength(greeted_avatars); i += 2)
         {
-            key avatarKey = llList2Key(greeted_avatars, i);
+            key avatar_uuid = llList2Key(greeted_avatars, i);
             integer timestamp = llList2Integer(greeted_avatars, i + 1);
             
             if (current_time - timestamp < GREETING_TIMEOUT)
             {
-                new_list += [avatarKey, timestamp];
+                new_list += [avatar_uuid, timestamp];
             }
         }
         

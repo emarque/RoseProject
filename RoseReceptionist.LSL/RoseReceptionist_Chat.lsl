@@ -32,10 +32,10 @@ default
         llSetTimerEvent(300.0); // Check every 5 minutes
     }
     
-    listen(integer channel, string name, key id, string message)
+    listen(integer channel, string name, key link_id, string message)
     {
         // Ignore messages from self
-        if (id == llGetKey()) return;
+        if (link_id == llGetKey()) return;
         
         // Check if message is directed at Rose
         string msg_lower = llToLower(message);
@@ -52,7 +52,7 @@ default
         {
             should_respond = TRUE;
         }
-        else if (current_speaker == id && !waiting_for_response)
+        else if (current_speaker == link_id && !waiting_for_response)
         {
             should_respond = TRUE;
         }
@@ -60,7 +60,7 @@ default
         if (should_respond)
         {
             // Get or create session ID for this avatar
-            string sessionId = getOrCreateSession(id);
+            string sessionId = getOrCreateSession(link_id);
             
             // Extract the actual message (remove name if present)
             string clean_message = message;
@@ -86,18 +86,18 @@ default
             }
             
             // Send to backend via Main script
-            string payload = (string)id + "|" + name + "|" + clean_message + "|" + sessionId;
+            string payload = (string)link_id + "|" + name + "|" + clean_message + "|" + sessionId;
             llMessageLinked(LINK_SET, LINK_CHAT_MESSAGE, payload, NULL_KEY);
             
-            current_speaker = id;
+            current_speaker = link_id;
             waiting_for_response = TRUE;
             
             // Notify wandering script to pause
-            llMessageLinked(LINK_SET, LINK_WANDERING_STATE, "CHATTING", id);
+            llMessageLinked(LINK_SET, LINK_WANDERING_STATE, "CHATTING", link_id);
         }
     }
     
-    link_message(integer sender, integer num, string msg, key id)
+    link_message(integer sender, integer num, string msg, key link_id)
     {
         if (num == LINK_SPEAK)
         {
@@ -119,13 +119,13 @@ default
         integer i;
         for (i = 0; i < llGetListLength(active_sessions); i += 3)
         {
-            key avatarKey = llList2Key(active_sessions, i);
+            key avatar_uuid = llList2Key(active_sessions, i);
             string sessionId = llList2String(active_sessions, i + 1);
             integer timestamp = llList2Integer(active_sessions, i + 2);
             
             if (current_time - timestamp < SESSION_TIMEOUT)
             {
-                new_sessions += [avatarKey, sessionId, timestamp];
+                new_sessions += [avatar_uuid, sessionId, timestamp];
             }
         }
         
@@ -146,10 +146,10 @@ default
     }
 }
 
-string getOrCreateSession(key avatarKey)
+string getOrCreateSession(key avatar_uuid)
 {
     // Look for existing session
-    integer idx = llListFindList(active_sessions, [avatarKey]);
+    integer idx = llListFindList(active_sessions, [avatar_uuid]);
     
     if (idx != -1)
     {
@@ -160,7 +160,7 @@ string getOrCreateSession(key avatarKey)
     
     // Create new session
     string sessionId = (string)llGenerateKey();
-    active_sessions += [avatarKey, sessionId, llGetUnixTime()];
+    active_sessions += [avatar_uuid, sessionId, llGetUnixTime()];
     
     return sessionId;
 }
