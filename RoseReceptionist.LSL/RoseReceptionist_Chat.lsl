@@ -12,6 +12,10 @@ integer listen_handle = -1;
 
 string RECEPTIONIST_NAME = "Rose";
 
+// Transcript delimiters for communication with backend
+string TRANSCRIPT_START = "[TRANSCRIPT]";
+string TRANSCRIPT_END = "[/TRANSCRIPT]";
+
 // Session tracking
 list active_sessions = []; // [avatarKey, sessionId, timestamp, ...]
 integer SESSION_TIMEOUT = 1800; // 30 minutes
@@ -23,7 +27,7 @@ integer waiting_for_response = FALSE;
 // Conversation tracking for transcript mode
 list conversation_participants = []; // List of avatar keys in current conversation
 list conversation_transcript = []; // [speaker_name, message, speaker_name, message, ...]
-integer MAX_TRANSCRIPT_MESSAGES = 10; // Keep last 10 messages total (user + Rose messages)
+integer MAX_TRANSCRIPT_MESSAGES = 10; // Keep last 10 messages (stored as 20 list elements: speaker+message pairs)
 integer CONVERSATION_TIMEOUT = 60; // 60 seconds of silence ends conversation
 integer last_message_time = 0;
 
@@ -56,7 +60,7 @@ string buildTranscriptString()
         return "";
     }
     
-    string transcript = "[TRANSCRIPT]\n";
+    string transcript = TRANSCRIPT_START + "\n";
     integer i;
     integer len = llGetListLength(conversation_transcript);
     
@@ -67,7 +71,7 @@ string buildTranscriptString()
         transcript += speaker + ": " + message + "\n";
     }
     
-    transcript += "[/TRANSCRIPT]";
+    transcript += TRANSCRIPT_END;
     return transcript;
 }
 

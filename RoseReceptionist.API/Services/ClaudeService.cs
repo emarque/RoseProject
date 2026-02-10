@@ -13,6 +13,7 @@ public class ClaudeService
     private readonly ConversationContextService _conversationService;
     
     private const string TRANSCRIPT_INSTRUCTION = "\n\nRespond naturally to the conversation above.";
+    private const string TRANSCRIPT_DELIMITER = "[TRANSCRIPT]";
 
     public ClaudeService(
         IConfiguration configuration,
@@ -60,7 +61,7 @@ public class ClaudeService
             List<ClaudeMessage> messages;
             
             // Check if we're in transcript mode
-            if (!string.IsNullOrEmpty(transcript) && transcript.Contains("[TRANSCRIPT]"))
+            if (!string.IsNullOrEmpty(transcript) && transcript.Contains(TRANSCRIPT_DELIMITER))
             {
                 // Use transcript mode with optimized prompt
                 systemPrompt = role == Role.Owner
