@@ -458,7 +458,7 @@ default
             if (message == "Get Attention")
             {
                 // Trigger attention-getting behavior
-                llRegionSayTo(link_id, 0, "You have my attention! How can I help you?");
+                llRegionSayTo(id, 0, "You have my attention! How can I help you?");
                 llMessageLinked(LINK_SET, LINK_ANIMATION, "wave", NULL_KEY);
                 
                 // Clean up listener
@@ -472,8 +472,8 @@ default
             else if (message == "Training Mode")
             {
                 // Start training wizard
-                llRegionSayTo(link_id, 0, "Starting training mode...");
-                llMessageLinked(LINK_SET, LINK_TRAINING_START, name, link_id);
+                llRegionSayTo(id, 0, "Starting training mode...");
+                llMessageLinked(LINK_SET, LINK_TRAINING_START, name, id);
                 
                 // Clean up listener
                 if (userMenuListener != 0)

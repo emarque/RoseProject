@@ -80,7 +80,7 @@ WAYPOINT1={"type":"transient","name":"hallway"}
 
 **For Authorization:**
 ```
-# Add UUIDs of authorized trainers
+# Add UUIDs of authorized trainers (replace with actual avatar UUIDs)
 OWNER_UUID_1=00000000-0000-0000-0000-000000000000
 OWNER_UUID_2=11111111-1111-1111-1111-111111111111
 

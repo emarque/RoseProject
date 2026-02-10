@@ -46,10 +46,10 @@ integer existing_waypoint_count = 0;
 integer waypoint_number_offset = 0;
 
 // Dialog channels and listeners
-integer dialog_channel = -1;
-integer dialog_listener = -1;
-integer textbox_channel = -1;
-integer textbox_listener = -1;
+integer dialog_channel = 0;
+integer dialog_listener = 0;
+integer textbox_channel = 0;
+integer textbox_listener = 0;
 
 // Notecard reading for config
 key notecardQuery;
@@ -195,15 +195,15 @@ string generateWaypointJSON()
 // Clear listeners
 clearListeners()
 {
-    if (dialog_listener != -1)
+    if (dialog_listener != 0)
     {
         llListenRemove(dialog_listener);
-        dialog_listener = -1;
+        dialog_listener = 0;
     }
-    if (textbox_listener != -1)
+    if (textbox_listener != 0)
     {
         llListenRemove(textbox_listener);
-        textbox_listener = -1;
+        textbox_listener = 0;
     }
 }
 

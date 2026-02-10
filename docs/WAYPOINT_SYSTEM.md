@@ -312,40 +312,6 @@ WAYPOINT3={"type":"sit","name":"desk work","time":120,"animation":"typing"}
 4. Copy the output from chat
 5. Paste into `[WPP]WaypointConfig` notecard
 6. Save - done!
-```json
-{
-  "type": "sit",
-  "name": "desk work",
-  "time": 120,
-  "animation": "typing"
-}
-```
-
-### Example 3: Mixed Format Route
-
-You can mix simple numeric and full JSON formats:
-
-**Waypoint0** - Description: `15`
-
-**Waypoint1** - Description:
-```json
-{
-  "type": "linger",
-  "name": "organizing files",
-  "time": 40,
-  "animation": "organizing"
-}
-```
-
-**Waypoint2** - Description: `20`
-
-**Waypoint3** - Description:
-```json
-{
-  "type": "transient",
-  "name": "return path"
-}
-```
 
 ## API Integration
 
