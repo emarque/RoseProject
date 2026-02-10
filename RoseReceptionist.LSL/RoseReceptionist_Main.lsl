@@ -44,6 +44,7 @@ integer adminMenuChannel;
 integer adminMenuListener;
 integer adminTextboxChannel;
 integer adminTextboxListener;
+key currentAdminUser;
 
 // User menu state
 integer userMenuChannel;
@@ -63,6 +64,9 @@ checkAdminAccess(key user)
         llRegionSayTo(user, 0, "⚠️ No admin access - SUBSCRIBER_KEY not configured.");
         return;
     }
+    
+    // Store the user who initiated the admin check
+    currentAdminUser = user;
     
     // Try to access system status endpoint to check if we have admin access
     string url = API_ENDPOINT + "/system/status";
@@ -227,8 +231,8 @@ handleSuccessResponse(string request_type, string body)
     {
         // Successfully accessed admin endpoint - enable admin mode
         IS_ADMIN_MODE = TRUE;
-        llOwnerSay("✅ Admin mode enabled!");
-        showAdminMenu(llGetOwner());
+        llRegionSayTo(currentAdminUser, 0, "✅ Admin mode enabled!");
+        showAdminMenu(currentAdminUser);
     }
     else if (request_type == "system_POST" || request_type == "system_GET")
     {
