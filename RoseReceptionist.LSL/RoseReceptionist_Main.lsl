@@ -473,6 +473,16 @@ default
             {
                 sendSystemRequest("/system/logs?count=10", "GET", "");
             }
+            else if (message == "Close")
+            {
+                // Close admin menu
+                if (adminMenuListener != 0)
+                {
+                    llListenRemove(adminMenuListener);
+                    adminMenuListener = 0;
+                }
+                llSetTimerEvent(0.0);
+            }
             // Removed "Credits" option until functionality is implemented
         }
         else if (channel == userMenuChannel)
