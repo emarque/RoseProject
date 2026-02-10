@@ -136,4 +136,16 @@ default
     {
         llResetScript();
     }
+    
+    changed(integer change)
+    {
+        if (change & CHANGED_INVENTORY)
+        {
+            if (llGetInventoryType("RoseConfig") == INVENTORY_NOTECARD)
+            {
+                llOwnerSay("🔄 Configuration updated, reloading...");
+                llResetScript();
+            }
+        }
+    }
 }
