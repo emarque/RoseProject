@@ -23,6 +23,7 @@ float SENSOR_REPEAT = 5.0;
 // Navigation
 float CHARACTER_SPEED = 0.5;
 integer NAVIGATION_TIMEOUT = 60; // seconds
+float WAYPOINT_POSITION_TOLERANCE = 0.1; // meters
 
 // Shift times (from config)
 string SHIFT_START_TIME = "09:00";
@@ -427,7 +428,7 @@ processWaypoint(key wpKey, vector wpPos)
         for (i = 0; i < llGetListLength(waypoint_configs); i += 3)
         {
             vector configPos = llList2Vector(waypoint_configs, i + 1);
-            if (llVecDist(configPos, wpPos) < 0.1)
+            if (llVecDist(configPos, wpPos) < WAYPOINT_POSITION_TOLERANCE)
             {
                 wpNumber = llList2Integer(waypoint_configs, i);
                 wpName = "Waypoint" + (string)wpNumber;
@@ -696,6 +697,10 @@ default
                                 string jsonStr = llGetSubString(value, pipePos + 1, -1);
                                 vector pos = (vector)posStr;
                                 waypoint_configs += [wpNum, pos, jsonStr];
+                            }
+                            else
+                            {
+                                llOwnerSay("⚠️ Malformed config line: " + configKey + " (missing '|' separator)");
                             }
                         }
                     }

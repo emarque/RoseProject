@@ -416,15 +416,11 @@ completeTraining()
     
     llRegionSayTo(training_user, 0, "✅ Training complete! Copy config below:");
     
-    string allConfigs = "\n";
+    string allConfigs = "";
     integer i;
     for (i = 0; i < llGetListLength(waypoint_configs); i++)
     {
-        allConfigs += llList2String(waypoint_configs, i);
-        if (i < llGetListLength(waypoint_configs) - 1)
-        {
-            allConfigs += "\n";
-        }
+        allConfigs += "\n" + llList2String(waypoint_configs, i);
     }
     
     llRegionSayTo(training_user, 0, allConfigs);
