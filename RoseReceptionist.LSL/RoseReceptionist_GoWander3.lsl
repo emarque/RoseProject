@@ -350,6 +350,13 @@ startWaypointScan()
     llSensor("", NULL_KEY, PASSIVE | ACTIVE, SENSOR_RANGE, PI);
 }
 
+initializeNavigation()
+{
+    createPathfindingCharacter();
+    llOwnerSay("Scanning for " + WAYPOINT_PREFIX + "[0-9]+ prims...");
+    startWaypointScan();
+}
+
 processWaypoint(key wpKey, vector wpPos)
 {
     // Get waypoint description
@@ -504,9 +511,7 @@ default
         else
         {
             llOwnerSay("No RoseConfig notecard found, using defaults");
-            createPathfindingCharacter();
-            llOwnerSay("Scanning for " + WAYPOINT_PREFIX + "[0-9]+ prims...");
-            startWaypointScan();
+            initializeNavigation();
         }
     }
     
@@ -553,9 +558,7 @@ default
             {
                 // Finished reading notecard
                 llOwnerSay("Configuration loaded.");
-                createPathfindingCharacter();
-                llOwnerSay("Scanning for " + WAYPOINT_PREFIX + "[0-9]+ prims...");
-                startWaypointScan();
+                initializeNavigation();
             }
         }
     }
