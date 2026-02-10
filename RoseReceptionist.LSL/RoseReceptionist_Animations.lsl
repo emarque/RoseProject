@@ -15,30 +15,7 @@ string ANIM_IDLE = "idle";
 string current_animation = "";
 key animation_target = NULL_KEY;
 
-default
-{
-    state_entry()
-    {
-        llOwnerSay("Rose Animation Script active");
-        
-        // Check for required animations in inventory
-        checkAnimations();
-    }
-    
-    link_message(integer sender, integer num, string msg, key id)
-    {
-        if (num == LINK_ANIMATION)
-        {
-            playAnimation(msg);
-        }
-    }
-    
-    on_rez(integer start_param)
-    {
-        llResetScript();
-    }
-}
-
+// Function definitions (MUST be before states in LSL)
 playAnimation(string animation_name)
 {
     // Stop current animation if playing
@@ -129,9 +106,34 @@ checkAnimations()
     }
 }
 
-timer()
+// State definitions
+default
 {
-    // Stop animation after timeout
-    stopCurrentAnimation();
-    llSetTimerEvent(0.0);
+    state_entry()
+    {
+        llOwnerSay("Rose Animation Script active");
+        
+        // Check for required animations in inventory
+        checkAnimations();
+    }
+    
+    link_message(integer sender, integer num, string msg, key id)
+    {
+        if (num == LINK_ANIMATION)
+        {
+            playAnimation(msg);
+        }
+    }
+    
+    timer()
+    {
+        // Stop animation after timeout
+        stopCurrentAnimation();
+        llSetTimerEvent(0.0);
+    }
+    
+    on_rez(integer start_param)
+    {
+        llResetScript();
+    }
 }
