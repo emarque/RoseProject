@@ -408,19 +408,40 @@ initializeNavigation()
 
 processWaypoint(key wpKey, vector wpPos)
 {
-    // Get waypoint details
-    list details = llGetObjectDetails(wpKey, [OBJECT_NAME, OBJECT_DESC]);
-    string wpName = llList2String(details, 0);
-    string wpDesc = llList2String(details, 1);
+    string wpName = "";
+    string wpDesc = "";
+    integer wpNumber = -1;
     
-    // Extract waypoint number from name
-    integer wpNumber = extractWaypointNumber(wpName);
+    // Get waypoint details from prim if available
+    if (wpKey != NULL_KEY)
+    {
+        list details = llGetObjectDetails(wpKey, [OBJECT_NAME, OBJECT_DESC]);
+        wpName = llList2String(details, 0);
+        wpDesc = llList2String(details, 1);
+        wpNumber = extractWaypointNumber(wpName);
+    }
+    else
+    {
+        // No prim key, use position to find waypoint number from configs
+        integer i;
+        for (i = 0; i < llGetListLength(waypoint_configs); i += 3)
+        {
+            vector configPos = llList2Vector(waypoint_configs, i + 1);
+            if (llVecDist(configPos, wpPos) < 0.1)
+            {
+                wpNumber = llList2Integer(waypoint_configs, i);
+                wpName = "Waypoint" + (string)wpNumber;
+                jump found;
+            }
+        }
+        @found;
+    }
     
     // Try to get configuration from notecard first
     string configJson = getWaypointConfig(wpNumber);
     
     // Fall back to prim description if no notecard config
-    if (configJson == "")
+    if (configJson == "" && wpDesc != "")
     {
         configJson = wpDesc;
     }
@@ -508,8 +529,13 @@ moveToNextWaypoint()
     integer num_waypoints = llGetListLength(waypoint_configs) / 3;
     if (num_waypoints == 0)
     {
-        llSetTimerEvent(30.0);
-        return;
+        // No configs, fall back to scanning waypoints from prims
+        num_waypoints = llGetListLength(waypoints) / 4;
+        if (num_waypoints == 0)
+        {
+            llSetTimerEvent(30.0);
+            return;
+        }
     }
     
     current_waypoint_index++;
@@ -518,8 +544,40 @@ moveToNextWaypoint()
         current_waypoint_index = 0;
     }
     
-    integer wpNumber = llList2Integer(waypoint_configs, current_waypoint_index * 3);
-    current_target_pos = llList2Vector(waypoint_configs, current_waypoint_index * 3 + 1);
+    integer wpNumber;
+    
+    // Use waypoint configs if available (new format with positions)
+    if (llGetListLength(waypoint_configs) > 0)
+    {
+        wpNumber = llList2Integer(waypoint_configs, current_waypoint_index * 3);
+        current_target_pos = llList2Vector(waypoint_configs, current_waypoint_index * 3 + 1);
+        
+        // Find matching waypoint prim for key (if scanned)
+        integer i;
+        integer found = FALSE;
+        for (i = 0; i < llGetListLength(waypoints); i += 4)
+        {
+            if (llList2Integer(waypoints, i + 1) == wpNumber)
+            {
+                current_target_key = llList2Key(waypoints, i);
+                found = TRUE;
+                jump done;
+            }
+        }
+        @done;
+        
+        if (!found)
+        {
+            current_target_key = NULL_KEY;
+        }
+    }
+    else
+    {
+        // Legacy mode: use waypoint prims only
+        current_target_key = llList2Key(waypoints, current_waypoint_index * 4);
+        wpNumber = llList2Integer(waypoints, current_waypoint_index * 4 + 1);
+        current_target_pos = llList2Vector(waypoints, current_waypoint_index * 4 + 3);
+    }
     
     llSay(0, "→ Waypoint " + (string)wpNumber);
     
