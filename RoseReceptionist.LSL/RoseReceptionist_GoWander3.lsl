@@ -262,14 +262,11 @@ logActivity(string activityName, string activityType, string location, integer o
     
     json += "}";
     
-    list headers = [
-        "Content-Type", "application/json",
-        "X-API-Key", API_KEY
-    ];
-    
     key http_request_id = llHTTPRequest(
         API_ENDPOINT + "/reports/activities",
-        [HTTP_METHOD, "POST", HTTP_MIMETYPE, "application/json"] + headers,
+        [HTTP_METHOD, "POST",
+         HTTP_MIMETYPE, "application/json",
+         HTTP_CUSTOM_HEADER, "X-API-Key", API_KEY],
         json
     );
     
@@ -281,14 +278,11 @@ completeActivity(string activityId)
 {
     if (activityId == "") return;
     
-    list headers = [
-        "Content-Type", "application/json",
-        "X-API-Key", API_KEY
-    ];
-    
     key http_request_id = llHTTPRequest(
         API_ENDPOINT + "/reports/activities/" + activityId + "/complete",
-        [HTTP_METHOD, "PUT", HTTP_MIMETYPE, "application/json"] + headers,
+        [HTTP_METHOD, "PUT",
+         HTTP_MIMETYPE, "application/json",
+         HTTP_CUSTOM_HEADER, "X-API-Key", API_KEY],
         "{}"
     );
 }
@@ -296,13 +290,10 @@ completeActivity(string activityId)
 // HTTP request to get current activity (for "what are you doing?" responses)
 getCurrentActivity()
 {
-    list headers = [
-        "X-API-Key", API_KEY
-    ];
-    
     key http_request_id = llHTTPRequest(
         API_ENDPOINT + "/reports/activities/current",
-        [HTTP_METHOD, "GET"] + headers,
+        [HTTP_METHOD, "GET",
+         HTTP_CUSTOM_HEADER, "X-API-Key", API_KEY],
         ""
     );
 }
@@ -315,14 +306,11 @@ generateDailyReport()
     // Get shift times (simplified - using current day with configured times)
     string json = "{\"reportDate\":\"" + today + "T00:00:00Z\",\"shiftStart\":\"" + today + "T" + SHIFT_START_TIME + ":00Z\",\"shiftEnd\":\"" + today + "T" + SHIFT_END_TIME + ":00Z\"}";
     
-    list headers = [
-        "Content-Type", "application/json",
-        "X-API-Key", API_KEY
-    ];
-    
     key http_request_id = llHTTPRequest(
         API_ENDPOINT + "/reports/daily",
-        [HTTP_METHOD, "POST", HTTP_MIMETYPE, "application/json"] + headers,
+        [HTTP_METHOD, "POST",
+         HTTP_MIMETYPE, "application/json",
+         HTTP_CUSTOM_HEADER, "X-API-Key", API_KEY],
         json
     );
     
@@ -341,7 +329,6 @@ createPathfindingCharacter()
         CHARACTER_DESIRED_SPEED, 1.5,
         CHARACTER_RADIUS, 0.5,
         CHARACTER_LENGTH, 1.0,
-        CHARACTER_ORIENTATION_AND_VELOCITY, TRUE,
         CHARACTER_AVOIDANCE_MODE, AVOID_CHARACTERS | AVOID_DYNAMIC_OBSTACLES
     ]);
     llOwnerSay("✅ Pathfinding character created");
@@ -479,13 +466,7 @@ moveToNextWaypoint()
     llOwnerSay("Moving to " + waypoint_name + " (" + WAYPOINT_PREFIX + (string)waypoint_num + ")");
     
     // Start navigation
-    list options = [
-        FORCE_DIRECT_PATH, FALSE,
-        CHARACTER_TYPE, CHARACTER_TYPE_A,
-        CHARACTER_MAX_SPEED, CHARACTER_SPEED
-    ];
-    
-    llNavigateTo(current_target_pos, options);
+    llNavigateTo(current_target_pos, []);
     is_navigating = TRUE;
     navigation_start_time = llGetUnixTime();
     current_state = "WALKING";
