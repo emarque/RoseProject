@@ -34,6 +34,12 @@ key notecardQuery;
 integer notecardLine = 0;
 string notecardName = "RoseConfig";
 
+// Waypoint config notecard reading
+key waypointConfigQuery;
+integer waypointConfigLine = 0;
+string WAYPOINT_CONFIG_NOTECARD = "[WPP]WaypointConfig";
+list waypoint_configs = []; // List of [waypoint_number, json_config_string]
+
 // ============================================================================
 // STATE VARIABLES
 // ============================================================================
@@ -326,6 +332,37 @@ generateDailyReport()
     llOwnerSay("Daily report generated for " + today);
 }
 
+// Load waypoint configurations from notecard
+loadWaypointConfig()
+{
+    if (llGetInventoryType(WAYPOINT_CONFIG_NOTECARD) == INVENTORY_NOTECARD)
+    {
+        waypoint_configs = [];
+        waypointConfigLine = 0;
+        waypointConfigQuery = llGetNotecardLine(WAYPOINT_CONFIG_NOTECARD, waypointConfigLine);
+        llOwnerSay("📖 Loading waypoint configurations from " + WAYPOINT_CONFIG_NOTECARD + "...");
+    }
+    else
+    {
+        llOwnerSay("⚠️ No " + WAYPOINT_CONFIG_NOTECARD + " found. Using prim descriptions (legacy mode).");
+        waypoint_configs = [];
+    }
+}
+
+// Get waypoint configuration by waypoint number
+string getWaypointConfig(integer waypoint_number)
+{
+    integer i;
+    for (i = 0; i < llGetListLength(waypoint_configs); i += 2)
+    {
+        if (llList2Integer(waypoint_configs, i) == waypoint_number)
+        {
+            return llList2String(waypoint_configs, i + 1);
+        }
+    }
+    return "";
+}
+
 // ============================================================================
 // NAVIGATION FUNCTIONS
 // ============================================================================
@@ -359,13 +396,25 @@ initializeNavigation()
 
 processWaypoint(key wpKey, vector wpPos)
 {
-    // Get waypoint description
+    // Get waypoint details
     list details = llGetObjectDetails(wpKey, [OBJECT_NAME, OBJECT_DESC]);
     string wpName = llList2String(details, 0);
     string wpDesc = llList2String(details, 1);
     
-    // Parse JSON from description
-    list wpData = parseWaypointJSON(wpDesc);
+    // Extract waypoint number from name
+    integer wpNumber = extractWaypointNumber(wpName);
+    
+    // Try to get configuration from notecard first
+    string configJson = getWaypointConfig(wpNumber);
+    
+    // Fall back to prim description if no notecard config
+    if (configJson == "")
+    {
+        configJson = wpDesc;
+    }
+    
+    // Parse JSON configuration
+    list wpData = parseWaypointJSON(configJson);
     
     activity_type = llList2String(wpData, 0);
     current_activity_name = llList2String(wpData, 1);
@@ -550,8 +599,56 @@ default
             }
             else
             {
-                // Finished reading notecard
+                // Finished reading RoseConfig, now load waypoint config
                 llOwnerSay("Configuration loaded.");
+                loadWaypointConfig();
+                
+                // If no waypoint config notecard, start navigation
+                if (llGetInventoryType(WAYPOINT_CONFIG_NOTECARD) != INVENTORY_NOTECARD)
+                {
+                    initializeNavigation();
+                }
+            }
+        }
+        else if (query_id == waypointConfigQuery)
+        {
+            if (data != EOF)
+            {
+                // Process waypoint config line
+                data = llStringTrim(data, STRING_TRIM);
+                
+                // Skip empty lines and comments
+                if (data != "" && llGetSubString(data, 0, 0) != "#")
+                {
+                    // Parse WAYPOINT<number>=<JSON>
+                    integer equals = llSubStringIndex(data, "=");
+                    if (equals != -1)
+                    {
+                        string configKey = llStringTrim(llGetSubString(data, 0, equals - 1), STRING_TRIM);
+                        string value = llStringTrim(llGetSubString(data, equals + 1, -1), STRING_TRIM);
+                        
+                        // Check if key starts with "WAYPOINT"
+                        if (llSubStringIndex(configKey, "WAYPOINT") == 0)
+                        {
+                            // Extract waypoint number
+                            string numStr = llGetSubString(configKey, 8, -1);
+                            integer wpNum = (integer)numStr;
+                            
+                            // Store configuration
+                            waypoint_configs += [wpNum, value];
+                        }
+                    }
+                }
+                
+                // Read next line
+                ++waypointConfigLine;
+                waypointConfigQuery = llGetNotecardLine(WAYPOINT_CONFIG_NOTECARD, waypointConfigLine);
+            }
+            else
+            {
+                // Finished reading waypoint config
+                integer configCount = llGetListLength(waypoint_configs) / 2;
+                llOwnerSay("✅ Loaded " + (string)configCount + " waypoint configurations");
                 initializeNavigation();
             }
         }
@@ -778,6 +875,11 @@ default
             if (llGetInventoryType("RoseConfig") == INVENTORY_NOTECARD)
             {
                 llOwnerSay("🔄 Configuration updated, reloading...");
+                llResetScript();
+            }
+            else if (llGetInventoryType(WAYPOINT_CONFIG_NOTECARD) == INVENTORY_NOTECARD)
+            {
+                llOwnerSay("🔄 Waypoint configuration updated, reloading...");
                 llResetScript();
             }
         }
