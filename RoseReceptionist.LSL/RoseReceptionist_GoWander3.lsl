@@ -75,7 +75,7 @@ list parseWaypointJSON(string json)
     
     // Check if it's just a number (simple mode)
     integer justNumber = (integer)json;
-    if ((string)justNumber == json || (justNumber > 0 && llStringLength(json) <= 4))
+    if ((string)justNumber == json && justNumber > 0)
     {
         return ["linger", "pausing", -1, justNumber, "", ""];
     }
