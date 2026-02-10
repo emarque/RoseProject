@@ -258,7 +258,7 @@ logActivity(string activityName, string activityType, string location, integer o
         "X-API-Key", API_KEY
     ];
     
-    key request_id = llHTTPRequest(
+    key http_request_id = llHTTPRequest(
         API_ENDPOINT + "/reports/activities",
         [HTTP_METHOD, "POST", HTTP_MIMETYPE, "application/json"] + headers,
         json
@@ -277,7 +277,7 @@ completeActivity(string activityId)
         "X-API-Key", API_KEY
     ];
     
-    key request_id = llHTTPRequest(
+    key http_request_id = llHTTPRequest(
         API_ENDPOINT + "/reports/activities/" + activityId + "/complete",
         [HTTP_METHOD, "PUT", HTTP_MIMETYPE, "application/json"] + headers,
         "{}"
@@ -291,7 +291,7 @@ getCurrentActivity()
         "X-API-Key", API_KEY
     ];
     
-    key request_id = llHTTPRequest(
+    key http_request_id = llHTTPRequest(
         API_ENDPOINT + "/reports/activities/current",
         [HTTP_METHOD, "GET"] + headers,
         ""
@@ -311,7 +311,7 @@ generateDailyReport()
         "X-API-Key", API_KEY
     ];
     
-    key request_id = llHTTPRequest(
+    key http_request_id = llHTTPRequest(
         API_ENDPOINT + "/reports/daily",
         [HTTP_METHOD, "POST", HTTP_MIMETYPE, "application/json"] + headers,
         json
@@ -602,7 +602,7 @@ default
         }
     }
     
-    link_message(integer sender, integer num, string msg, key id)
+    link_message(integer sender, integer num, string msg, key link_id)
     {
         if (num == LINK_WANDERING_STATE)
         {
@@ -628,7 +628,17 @@ default
         else if (msg == "TOGGLE_WANDER")
         {
             wander_enabled = !wander_enabled;
-            llOwnerSay("Wandering " + (string)(wander_enabled ? "enabled" : "disabled"));
+            
+            string status;
+            if (wander_enabled)
+            {
+                status = "enabled";
+            }
+            else
+            {
+                status = "disabled";
+            }
+            llOwnerSay("Wandering " + status);
             
             if (!wander_enabled)
             {
@@ -656,7 +666,7 @@ default
         }
     }
     
-    http_response(key request_id, integer status, list metadata, string body)
+    http_response(key http_request_id, integer status, list metadata, string body)
     {
         if (status == 200)
         {

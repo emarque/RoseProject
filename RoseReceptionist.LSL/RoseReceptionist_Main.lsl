@@ -55,13 +55,13 @@ checkAdminAccess()
     // Try to access system status endpoint to check if we have admin access
     string url = API_ENDPOINT + "/system/status";
     
-    key request_id = llHTTPRequest(url,
+    key http_request_id = llHTTPRequest(url,
         [HTTP_METHOD, "GET",
          HTTP_CUSTOM_HEADER, "X-API-Key", SUBSCRIBER_KEY,
          HTTP_BODY_MAXLENGTH, 16384],
         "");
     
-    http_requests += [request_id, "admin_check", ""];
+    http_requests += [http_request_id, "admin_check", ""];
 }
 
 showAdminMenu()
@@ -96,8 +96,8 @@ sendSystemRequest(string endpoint, string method, string json)
         params += [HTTP_MIMETYPE, "application/json"];
     }
     
-    key request_id = llHTTPRequest(url, params, json);
-    http_requests += [request_id, "system_" + method, endpoint];
+    key http_request_id = llHTTPRequest(url, params, json);
+    http_requests += [http_request_id, "system_" + method, endpoint];
 }
 
 readConfig()
@@ -121,14 +121,14 @@ sendArrivalRequest(string avatarKey, string avatarName, string location)
         "\"location\":\"" + location + "\"" +
         "}";
     
-    key request_id = llHTTPRequest(url,
+    key http_request_id = llHTTPRequest(url,
         [HTTP_METHOD, "POST",
          HTTP_MIMETYPE, "application/json",
          HTTP_CUSTOM_HEADER, "X-API-Key", SUBSCRIBER_KEY,
          HTTP_BODY_MAXLENGTH, 16384],
         json);
     
-    http_requests += [request_id, "arrival", avatarKey];
+    http_requests += [http_request_id, "arrival", avatarKey];
 }
 
 sendChatRequest(string avatarKey, string avatarName, string message, string sessionId)
@@ -150,14 +150,14 @@ sendChatRequest(string avatarKey, string avatarName, string message, string sess
         "\"sessionId\":\"" + sessionId + "\"" +
         "}";
     
-    key request_id = llHTTPRequest(url,
+    key http_request_id = llHTTPRequest(url,
         [HTTP_METHOD, "POST",
          HTTP_MIMETYPE, "application/json",
          HTTP_CUSTOM_HEADER, "X-API-Key", SUBSCRIBER_KEY,
          HTTP_BODY_MAXLENGTH, 16384],
         json);
     
-    http_requests += [request_id, "chat", avatarKey];
+    http_requests += [http_request_id, "chat", avatarKey];
 }
 
 handleSuccessResponse(string request_type, string body)
@@ -206,10 +206,10 @@ handleSuccessResponse(string request_type, string body)
     }
 }
 
-string extractJsonString(string json, string key)
+string extractJsonString(string json, string json_key)
 {
     // Simple JSON parser for string values
-    string search = "\"" + key + "\":\"";
+    string search = "\"" + json_key + "\":\"";
     integer start = llSubStringIndex(json, search);
     if (start == -1) return "";
     
@@ -353,7 +353,7 @@ default
         llSetTimerEvent(0.0);
     }
     
-    listen(integer channel, string name, key id, string message)
+    listen(integer channel, string name, key link_id, string message)
     {
         if (channel == adminMenuChannel)
         {
@@ -404,7 +404,7 @@ default
         }
     }
     
-    link_message(integer sender, integer num, string msg, key id)
+    link_message(integer sender, integer num, string msg, key link_id)
     {
         if (num == LINK_SENSOR_DETECTED)
         {
@@ -429,10 +429,10 @@ default
         }
     }
     
-    http_response(key request_id, integer status, list metadata, string body)
+    http_response(key http_request_id, integer status, list metadata, string body)
     {
         // Find the request in our tracking list
-        integer idx = llListFindList(http_requests, [request_id]);
+        integer idx = llListFindList(http_requests, [http_request_id]);
         if (idx == -1)
         {
             llOwnerSay("Received response for unknown request");
