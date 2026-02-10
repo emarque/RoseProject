@@ -298,7 +298,8 @@ default
                         {
                             // Support OWNER_NAME_1, OWNER_NAME_2, etc.
                             OWNER_NAMES += [value];
-                            llOwnerSay("✅ Owner name: " + value);
+                            integer ownerNum = (integer)llGetSubString(configKey, 11, -1);
+                            llOwnerSay("✅ Owner #" + (string)ownerNum + " name: " + value);
                         }
                     }
                 }
