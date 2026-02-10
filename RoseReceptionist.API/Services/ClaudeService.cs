@@ -42,7 +42,8 @@ public class ClaudeService
         Role role,
         string? personalityNotes = null,
         string? favoriteDrink = null,
-        Guid? sessionId = null)
+        Guid? sessionId = null,
+        string? transcript = null)
     {
         var apiKey = _configuration["Anthropic:ApiKey"];
         if (string.IsNullOrEmpty(apiKey))
@@ -53,15 +54,40 @@ public class ClaudeService
 
         try
         {
-            var systemPrompt = role == Role.Owner
-                ? GetOwnerSystemPrompt(avatarName, personalityNotes, favoriteDrink)
-                : GetVisitorSystemPrompt(avatarName);
+            string systemPrompt;
+            List<ClaudeMessage> messages;
+            
+            // Check if we're in transcript mode
+            if (!string.IsNullOrEmpty(transcript) && transcript.Contains("[TRANSCRIPT]"))
+            {
+                // Use transcript mode with optimized prompt
+                systemPrompt = role == Role.Owner
+                    ? GetOwnerTranscriptSystemPrompt(avatarName, personalityNotes, favoriteDrink)
+                    : GetVisitorTranscriptSystemPrompt(avatarName);
+                
+                // In transcript mode, use the transcript directly
+                messages = new List<ClaudeMessage>
+                {
+                    new ClaudeMessage
+                    {
+                        Role = "user",
+                        Content = transcript + "\n\nRespond naturally to the conversation above."
+                    }
+                };
+            }
+            else
+            {
+                // Use standard mode with conversation history
+                systemPrompt = role == Role.Owner
+                    ? GetOwnerSystemPrompt(avatarName, personalityNotes, favoriteDrink)
+                    : GetVisitorSystemPrompt(avatarName);
 
-            var conversationHistory = sessionId.HasValue
-                ? await _conversationService.GetRecentConversationAsync(avatarKey, sessionId.Value)
-                : new List<ConversationContext>();
+                var conversationHistory = sessionId.HasValue
+                    ? await _conversationService.GetRecentConversationAsync(avatarKey, sessionId.Value)
+                    : new List<ConversationContext>();
 
-            var messages = BuildMessageHistory(conversationHistory, message);
+                messages = BuildMessageHistory(conversationHistory, message);
+            }
 
             var model = _configuration["Anthropic:Model"] ?? "claude-3-haiku-20240307";
             var maxTokens = int.Parse(_configuration["Anthropic:MaxTokens"] ?? "150");
@@ -162,6 +188,26 @@ Offer them refreshments, ask about their day, and be genuinely interested. Keep 
         return $@"You are Rose, a cheerful and professional receptionist in a corporate virtual office in Second Life. You're speaking with {avatarName}, a visitor to the office. Be warm, welcoming, and helpful while maintaining professional boundaries.
 
 Greet them warmly, offer refreshments (coffee, tea, water, snacks), and let them know you'll notify the appropriate person if they need assistance. Keep responses brief (1-3 sentences) since this is real-time chat. Use professional but friendly language and occasional emotes like *smiles warmly*. Use UK English spelling (colour, favourite, etc.).";
+    }
+
+    private string GetOwnerTranscriptSystemPrompt(string avatarName, string? personalityNotes, string? favoriteDrink)
+    {
+        var drink = string.IsNullOrEmpty(favoriteDrink) ? "their favourite beverage" : favoriteDrink;
+        var notes = string.IsNullOrEmpty(personalityNotes) ? "a wonderful person" : personalityNotes;
+
+        return $@"You are Rose, a charming and devoted virtual receptionist in a Second Life office. You're in a conversation with {avatarName}, one of your bosses who you adore. Be warm, familiar, playful, and slightly flirty in a tasteful way.
+
+Their favourite drink is: {drink}
+Notes about them: {notes}
+
+You're reviewing a transcript of the recent conversation. Respond naturally and contextually based on what's been said. Keep your response brief (1-3 sentences) since this is real-time chat. Use casual language and occasional emotes like *smiles* or *winks*. Use UK English spelling (colour, favourite, etc.).";
+    }
+
+    private string GetVisitorTranscriptSystemPrompt(string avatarName)
+    {
+        return $@"You are Rose, a cheerful and professional receptionist in a corporate virtual office in Second Life. You're in a conversation with {avatarName}, a visitor to the office. Be warm, welcoming, and helpful while maintaining professional boundaries.
+
+You're reviewing a transcript of the recent conversation. Respond naturally and contextually based on what's been said. Keep your response brief (1-3 sentences) since this is real-time chat. Use professional but friendly language and occasional emotes like *smiles warmly*. Use UK English spelling (colour, favourite, etc.).";
     }
 
     private string GetFallbackResponse(Role role)

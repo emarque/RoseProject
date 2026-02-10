@@ -131,7 +131,7 @@ sendArrivalRequest(string avatarKey, string avatarName, string location)
     http_requests += [http_request_id, "arrival", avatarKey];
 }
 
-sendChatRequest(string avatarKey, string avatarName, string message, string sessionId)
+sendChatRequest(string avatarKey, string avatarName, string message, string sessionId, string transcript)
 {
     if (API_ENDPOINT == "")
     {
@@ -147,8 +147,15 @@ sendChatRequest(string avatarKey, string avatarName, string message, string sess
         "\"avatarName\":\"" + avatarName + "\"," +
         "\"message\":\"" + escapeJson(message) + "\"," +
         "\"location\":\"" + location + "\"," +
-        "\"sessionId\":\"" + sessionId + "\"" +
-        "}";
+        "\"sessionId\":\"" + sessionId + "\"";
+    
+    // Add transcript if provided
+    if (transcript != "")
+    {
+        json += ",\"transcript\":\"" + escapeJson(transcript) + "\"";
+    }
+    
+    json += "}";
     
     key http_request_id = llHTTPRequest(url,
         [HTTP_METHOD, "POST",
@@ -418,14 +425,21 @@ default
         }
         else if (num == LINK_CHAT_MESSAGE)
         {
-            // Chat message: msg format is "avatarKey|avatarName|message|sessionId"
+            // Chat message: msg format is "avatarKey|avatarName|message|sessionId|transcript"
             list parts = llParseString2List(msg, ["|"], []);
             string avatarKey = llList2String(parts, 0);
             string avatarName = llList2String(parts, 1);
             string message = llList2String(parts, 2);
             string sessionId = llList2String(parts, 3);
+            string transcript = "";
             
-            sendChatRequest(avatarKey, avatarName, message, sessionId);
+            // Check if transcript is included (5th parameter)
+            if (llGetListLength(parts) >= 5)
+            {
+                transcript = llList2String(parts, 4);
+            }
+            
+            sendChatRequest(avatarKey, avatarName, message, sessionId, transcript);
         }
     }
     
