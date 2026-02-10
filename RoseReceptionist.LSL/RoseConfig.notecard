@@ -21,6 +21,13 @@ SUBSCRIBER_KEY=your-subscriber-key-here
 # OWNER_UUID=00000000-0000-0000-0000-000000000000
 
 # ============================================
+# RECEPTIONIST SETTINGS
+# ============================================
+
+# Receptionist name (used in user menu and conversations)
+RECEPTIONIST_NAME=Rose
+
+# ============================================
 # ADVANCED SETTINGS
 # ============================================
 
@@ -30,6 +37,10 @@ SUBSCRIBER_KEY=your-subscriber-key-here
 # Waypoint prefix for navigation (optional - defaults to "Waypoint")
 # Change this if your waypoint prims are named differently
 # WAYPOINT_PREFIX=Waypoint
+
+# Items to ignore when listing inventory (comma-separated)
+# These items will not appear in animation/attachment selection menus
+IGNORE_ITEMS=RoseConfig,[WPP]WaypointConfig,RoseReceptionist_Main,RoseReceptionist_Chat,RoseReceptionist_GoWander3,RoseReceptionist_Animations,RoseReceptionist_Sensor,RoseReceptionist_Training
 
 # Notes:
 # - Lines starting with # are comments

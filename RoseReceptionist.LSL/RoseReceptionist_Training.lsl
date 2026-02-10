@@ -36,6 +36,15 @@ list current_wp_attachments = [];
 key training_user = NULL_KEY;
 string training_user_name = "";
 
+// Authorization
+list OWNER_UUIDS = [];
+string RECEPTIONIST_NAME = "Rose";
+
+// Training mode
+string training_mode = "REPLACE"; // REPLACE or APPEND
+integer existing_waypoint_count = 0;
+integer waypoint_number_offset = 0;
+
 // Dialog channels and listeners
 integer dialog_channel = -1;
 integer dialog_listener = -1;
@@ -45,10 +54,46 @@ integer textbox_listener = -1;
 // Notecard reading for config
 key notecardQuery;
 integer notecardLine = 0;
+string config_notecard_being_read = ""; // Track which notecard we're reading
 
 // ============================================================================
 // UTILITY FUNCTIONS
 // ============================================================================
+
+// Check if user is authorized for training
+integer isAuthorizedTrainer(key user)
+{
+    // Check if user is owner
+    if (user == llGetOwner())
+    {
+        return TRUE;
+    }
+    
+    // Check if user is in OWNER_UUIDS list
+    if (llListFindList(OWNER_UUIDS, [(string)user]) != -1)
+    {
+        return TRUE;
+    }
+    
+    return FALSE;
+}
+
+// Count existing waypoint configurations
+integer countExistingWaypoints()
+{
+    if (llGetInventoryType("[WPP]WaypointConfig") != INVENTORY_NOTECARD)
+    {
+        return 0;
+    }
+    
+    // Read notecard to count WAYPOINT entries
+    existing_waypoint_count = 0;
+    config_notecard_being_read = "[WPP]WaypointConfig";
+    notecardLine = 0;
+    notecardQuery = llGetNotecardLine(config_notecard_being_read, notecardLine);
+    
+    return -1; // Signal that we're counting asynchronously
+}
 
 // Extract number from waypoint name
 integer extractWaypointNumber(string name)
@@ -108,7 +153,7 @@ string generateWaypointJSON()
     // Add name (use waypoint prim name if not set)
     if (current_wp_name == "")
     {
-        current_wp_name = "waypoint " + (string)current_wp_number;
+        current_wp_name = "waypoint " + (string)(current_wp_number + waypoint_number_offset);
     }
     json += ",\"name\":\"" + current_wp_name + "\"";
     
@@ -168,15 +213,55 @@ clearListeners()
 
 startTraining(key user, string userName)
 {
+    // Check authorization first
+    if (!isAuthorizedTrainer(user))
+    {
+        llRegionSayTo(user, 0, "Sorry, I'm not authorized to take training from anyone but my managers, but I'd be happy to let them know you think I need training.");
+        llOwnerSay("⚠️ " + userName + " attempted to access training mode but was not authorized.");
+        return;
+    }
+    
     training_user = user;
     training_user_name = userName;
-    training_state = "SCANNING";
     
-    llOwnerSay("🎓 Training Mode activated by " + userName);
-    llRegionSayTo(user, 0, "Starting training mode! Scanning for " + WAYPOINT_PREFIX + " prims...");
+    // Check for existing configuration
+    integer existingCount = countExistingWaypoints();
     
-    // Scan for waypoints
-    llSensor("", NULL_KEY, PASSIVE | ACTIVE, SENSOR_RANGE, PI);
+    if (existingCount == -1)
+    {
+        // Counting asynchronously, will continue in dataserver
+        training_state = "COUNTING";
+        llOwnerSay("🎓 Training Mode requested by " + userName + " - checking existing configuration...");
+    }
+    else if (existingCount == 0)
+    {
+        // No existing config, proceed directly to scanning
+        training_state = "SCANNING";
+        training_mode = "REPLACE";
+        waypoint_number_offset = 0;
+        llOwnerSay("🎓 Training Mode activated by " + userName);
+        llRegionSayTo(user, 0, "Starting training mode! Scanning for " + WAYPOINT_PREFIX + " prims...");
+        llSensor("", NULL_KEY, PASSIVE | ACTIVE, SENSOR_RANGE, PI);
+    }
+}
+
+showTrainingModeMenu()
+{
+    clearListeners();
+    
+    dialog_channel = -1000 - (integer)llFrand(9999);
+    dialog_listener = llListen(dialog_channel, "", training_user, "");
+    
+    string message = "🎓 Training Mode\n\n";
+    message += "Found " + (string)existing_waypoint_count + " existing waypoint configurations.\n\n";
+    message += "How would you like to proceed?";
+    
+    llDialog(training_user, message,
+        ["Replace All", "Add New", "Cancel"],
+        dialog_channel);
+    
+    training_state = "MODE_SELECT";
+    llSetTimerEvent(60.0);
 }
 
 showTypeMenu()
@@ -298,8 +383,9 @@ finalizeWaypoint()
     string json = generateWaypointJSON();
     waypoint_configs += [json];
     
-    // Output to chat
-    llRegionSayTo(training_user, 0, "WAYPOINT" + (string)current_wp_number + "=" + json);
+    // Output to chat with adjusted waypoint number
+    integer outputNumber = current_wp_number + waypoint_number_offset;
+    llRegionSayTo(training_user, 0, "WAYPOINT" + (string)outputNumber + "=" + json);
     
     // Move to next waypoint
     current_waypoint_index++;
@@ -338,10 +424,21 @@ completeTraining()
     
     llRegionSayTo(training_user, 0, "\n✅ Training complete! Configured " + 
                   (string)waypointCount + " waypoints.");
-    llRegionSayTo(training_user, 0, "\nCopy the WAYPOINT lines above and paste them into the [WPP]WaypointConfig notecard.");
+    
+    if (training_mode == "APPEND")
+    {
+        llRegionSayTo(training_user, 0, "\n📝 Mode: ADD NEW");
+        llRegionSayTo(training_user, 0, "Copy the WAYPOINT lines above and ADD them to the existing entries in [WPP]WaypointConfig notecard.");
+    }
+    else
+    {
+        llRegionSayTo(training_user, 0, "\n📝 Mode: REPLACE ALL");
+        llRegionSayTo(training_user, 0, "Copy the WAYPOINT lines above and REPLACE the contents of [WPP]WaypointConfig notecard.");
+    }
+    
     llRegionSayTo(training_user, 0, "The scripts will automatically reload when you save the notecard.");
     
-    llOwnerSay("Training session completed by " + training_user_name);
+    llOwnerSay("Training session completed by " + training_user_name + " (" + training_mode + " mode)");
     
     // Reset for next session
     training_user = NULL_KEY;
@@ -349,6 +446,8 @@ completeTraining()
     found_waypoints = [];
     waypoint_configs = [];
     current_waypoint_index = 0;
+    waypoint_number_offset = 0;
+    existing_waypoint_count = 0;
 }
 
 cancelTraining()
@@ -380,9 +479,10 @@ default
     {
         llOwnerSay("Rose Training Wizard ready");
         
-        // Read WAYPOINT_PREFIX from config if available
+        // Read configuration from RoseConfig if available
         if (llGetInventoryType("RoseConfig") == INVENTORY_NOTECARD)
         {
+            config_notecard_being_read = "RoseConfig";
             notecardLine = 0;
             notecardQuery = llGetNotecardLine("RoseConfig", notecardLine);
         }
@@ -404,16 +504,59 @@ default
                         string configKey = llStringTrim(llGetSubString(data, 0, equals - 1), STRING_TRIM);
                         string value = llStringTrim(llGetSubString(data, equals + 1, -1), STRING_TRIM);
                         
-                        if (configKey == "WAYPOINT_PREFIX")
+                        if (config_notecard_being_read == "RoseConfig")
                         {
-                            WAYPOINT_PREFIX = value;
-                            llOwnerSay("✅ WAYPOINT_PREFIX: " + WAYPOINT_PREFIX);
+                            if (configKey == "WAYPOINT_PREFIX")
+                            {
+                                WAYPOINT_PREFIX = value;
+                                llOwnerSay("✅ WAYPOINT_PREFIX: " + WAYPOINT_PREFIX);
+                            }
+                            else if (configKey == "OWNER_UUID" || llSubStringIndex(configKey, "OWNER_UUID_") == 0)
+                            {
+                                OWNER_UUIDS += [value];
+                            }
+                            else if (configKey == "RECEPTIONIST_NAME")
+                            {
+                                RECEPTIONIST_NAME = value;
+                            }
+                        }
+                        else if (config_notecard_being_read == "[WPP]WaypointConfig")
+                        {
+                            // Count waypoint entries
+                            if (llSubStringIndex(configKey, "WAYPOINT") == 0)
+                            {
+                                existing_waypoint_count++;
+                            }
                         }
                     }
                 }
                 
                 ++notecardLine;
-                notecardQuery = llGetNotecardLine("RoseConfig", notecardLine);
+                notecardQuery = llGetNotecardLine(config_notecard_being_read, notecardLine);
+            }
+            else
+            {
+                // Finished reading notecard
+                if (config_notecard_being_read == "[WPP]WaypointConfig" && training_state == "COUNTING")
+                {
+                    // Finished counting existing waypoints
+                    if (existing_waypoint_count > 0)
+                    {
+                        llRegionSayTo(training_user, 0, "Found " + (string)existing_waypoint_count + " existing waypoint configurations.");
+                        showTrainingModeMenu();
+                    }
+                    else
+                    {
+                        // No existing waypoints, proceed directly
+                        training_state = "SCANNING";
+                        training_mode = "REPLACE";
+                        waypoint_number_offset = 0;
+                        llOwnerSay("🎓 Training Mode activated by " + training_user_name);
+                        llRegionSayTo(training_user, 0, "Starting training mode! Scanning for " + WAYPOINT_PREFIX + " prims...");
+                        llSensor("", NULL_KEY, PASSIVE | ACTIVE, SENSOR_RANGE, PI);
+                    }
+                }
+                config_notecard_being_read = "";
             }
         }
     }
@@ -482,7 +625,32 @@ default
     {
         if (id != training_user) return;
         
-        if (training_state == "TYPE")
+        if (training_state == "MODE_SELECT")
+        {
+            if (message == "Replace All")
+            {
+                training_mode = "REPLACE";
+                waypoint_number_offset = 0;
+                training_state = "SCANNING";
+                llRegionSayTo(training_user, 0, "Mode: REPLACE ALL - Scanning for " + WAYPOINT_PREFIX + " prims...");
+                llSensor("", NULL_KEY, PASSIVE | ACTIVE, SENSOR_RANGE, PI);
+            }
+            else if (message == "Add New")
+            {
+                training_mode = "APPEND";
+                waypoint_number_offset = existing_waypoint_count;
+                training_state = "SCANNING";
+                llRegionSayTo(training_user, 0, "Mode: ADD NEW - New waypoints will start at WAYPOINT" + 
+                             (string)waypoint_number_offset + ". Scanning for " + WAYPOINT_PREFIX + " prims...");
+                llSensor("", NULL_KEY, PASSIVE | ACTIVE, SENSOR_RANGE, PI);
+            }
+            else if (message == "Cancel")
+            {
+                llRegionSayTo(training_user, 0, "Training cancelled.");
+                cancelTraining();
+            }
+        }
+        else if (training_state == "TYPE")
         {
             if (message == "Transient")
             {

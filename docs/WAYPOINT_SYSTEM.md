@@ -4,11 +4,14 @@
 
 The Rose Receptionist waypoint system enables automated navigation and activity management for your virtual receptionist. Rose can walk to designated waypoint prims in sequence, perform various actions, and log activities through the API.
 
+**🎓 NEW: Interactive Training Wizard** - Configure waypoints easily using dialog menus! No more manual JSON editing.
+
 ## Table of Contents
 
 - [Quick Start](#quick-start)
+- [Training Wizard](#training-wizard)
+- [Waypoint Configuration](#waypoint-configuration)
 - [Waypoint Naming](#waypoint-naming)
-- [Waypoint Descriptions](#waypoint-descriptions)
 - [Action Types](#action-types)
 - [Configuration](#configuration)
 - [Examples](#examples)
@@ -17,7 +20,7 @@ The Rose Receptionist waypoint system enables automated navigation and activity 
 
 ## Quick Start
 
-### Basic Setup
+### New Recommended Setup (with Training Wizard)
 
 1. **Place waypoint prims** in your scene with sequential names:
    - `Waypoint0`
@@ -25,17 +28,139 @@ The Rose Receptionist waypoint system enables automated navigation and activity 
    - `Waypoint2`
    - etc.
 
-2. **Add descriptions** to each waypoint prim to define what Rose does there. You can use:
-   - Simple numeric format: Just enter a number (e.g., `30` for 30 seconds)
-   - Full JSON format: For complete control over actions
+2. **Touch Rose** and select "Training Mode" from the menu
 
-3. **Ensure waypoints are within sensor range** (default 50 meters)
+3. **Follow the wizard** to configure each waypoint:
+   - Select waypoint type (transient, linger, sit)
+   - Choose duration if needed
+   - Pick an animation
+   - Set orientation
+   - Select attachments (coming soon)
 
-4. Rose will automatically:
-   - Scan for waypoints on startup
-   - Navigate to them in sequential order
-   - Perform the specified actions
-   - Loop back to the start when complete
+4. **Copy the output** from chat and paste into `[WPP]WaypointConfig` notecard
+
+5. **Done!** Scripts will automatically reload when you save the notecard
+
+### Legacy Setup (Manual Configuration)
+
+You can still configure waypoints manually by editing the `[WPP]WaypointConfig` notecard or by adding JSON to prim descriptions (not recommended due to character limits).
+
+## Training Wizard
+
+### Authorization
+
+**Training mode is restricted to authorized managers only.**
+
+- Only users listed in the `OWNER_UUID` configuration or the object owner can access training mode
+- Unauthorized users will receive a polite message explaining they need manager authorization
+- The owner will be notified when unauthorized access is attempted
+
+### Accessing Training Mode
+
+**For authorized managers:**
+1. Touch the Rose receptionist object
+2. Select "Training Mode" from the menu
+3. If existing waypoint configurations are found, choose:
+   - **Replace All**: Start fresh, replace all existing waypoints (numbering from 0)
+   - **Add New**: Keep existing waypoints, add new ones (numbering continues from last waypoint)
+   - **Cancel**: Exit training mode
+4. Follow the interactive prompts
+
+The training wizard will:
+- Check your authorization before proceeding
+- Detect existing waypoint configurations
+- Offer replace or append mode if configurations exist
+- Scan for all `Waypoint[0-9]+` prims within 50 meters
+- Guide you through configuring each waypoint
+- Generate properly formatted JSON
+- Output configuration lines to chat
+
+### Replace vs. Add New Mode
+
+**Replace All Mode:**
+- Starts numbering from WAYPOINT0
+- Intended to completely replace existing configuration
+- Use when redesigning your entire waypoint route
+
+**Add New Mode:**
+- Starts numbering from WAYPOINT(N+1) where N is the last existing waypoint
+- Keeps existing waypoint configurations
+- Use when extending your existing route with new waypoints
+
+### Training Wizard Flow
+
+For each waypoint, you'll be prompted for:
+
+1. **Type Selection**
+   - Transient: Pass through without stopping
+   - Linger: Stop and perform an activity
+   - Sit: Sit down at this location
+
+2. **Duration** (for linger/sit types)
+   - 15s, 30s, 60s, 120s
+   - Custom (coming soon)
+   - Skip (uses default 30s)
+
+3. **Animation**
+   - Lists all animations in inventory
+   - Select one or choose "None"
+
+4. **Orientation**
+   - North (90°)
+   - East (0°)
+   - South (270°)
+   - West (180°)
+   - None (no rotation)
+
+5. **Attachments** (coming soon)
+   - Select objects to attach during this activity
+
+### After Training
+
+1. Look for lines in chat like:
+   ```
+   WAYPOINT0={"type":"linger","name":"reception desk",...}
+   WAYPOINT1={"type":"transient","name":"hallway"}
+   ```
+
+2. Copy these lines
+
+3. Open the `[WPP]WaypointConfig` notecard in Rose's inventory
+
+4. **If you used "Replace All" mode:**
+   - Delete all existing WAYPOINT lines
+   - Paste the new lines
+
+5. **If you used "Add New" mode:**
+   - Keep existing WAYPOINT lines
+   - Paste the new lines at the end
+
+6. Save the notecard - scripts will automatically reload!
+
+## Waypoint Configuration
+
+### Configuration Storage
+
+Waypoint configurations are now stored in the `[WPP]WaypointConfig` notecard. This notecard:
+- Has no character limits (unlike prim descriptions)
+- Is easy to edit and backup
+- Supports comments and formatting
+- Auto-reloads when changed
+
+### Notecard Format
+
+```
+# Rose Receptionist Waypoint Configuration
+# Lines starting with # are comments
+
+WAYPOINT0={"type":"linger","name":"reception desk","orientation":0,"time":60,"animation":"stand_friendly","attachments":[]}
+WAYPOINT1={"type":"transient","name":"hallway corner"}
+WAYPOINT2={"type":"linger","name":"watering plants","orientation":90,"time":45,"animation":"watering","attachments":[{"item":"Watering Can","point":"RightHand"}]}
+```
+
+### Legacy: Prim Description Configuration
+
+For backward compatibility, Rose will still read from prim descriptions if no notecard configuration exists for a waypoint. However, this is **not recommended** due to the 127-character limit on prim descriptions.
 
 ## Waypoint Naming
 
@@ -64,54 +189,17 @@ This allows names like: `Checkpoint0`, `Checkpoint1`, etc.
 - `checkpoint0` (case-insensitive)
 - `Station0`, `Station1` (with custom prefix)
 
-## Waypoint Descriptions
-
-Each waypoint prim's description field defines what action Rose performs when she reaches it.
-
-### Simple Numeric Format
-
-For basic pausing, just enter a number representing seconds:
-
-```
-30
-```
-
-This creates a default linger action where Rose pauses for 30 seconds.
-
-**Behavior:**
-- Type: `linger`
-- Name: `pausing`
-- Duration: The number you entered (in seconds)
-- Orientation: None
-- Animation: None
-- Attachments: None
-
-### Full JSON Format
-
-For complete control, use JSON format:
-
-```json
-{
-  "type": "linger",
-  "name": "watering plants",
-  "orientation": 180,
-  "time": 45,
-  "animation": "watering",
-  "attachments": [{"item": "Can", "point": "RightHand"}]
-}
-```
-
 ## Action Types
+
+Waypoints can have three different types of behaviors:
 
 ### 1. Transient
 
 Rose passes through without stopping.
 
-```json
-{
-  "type": "transient",
-  "name": "hallway"
-}
+**Notecard format:**
+```
+WAYPOINT0={"type":"transient","name":"hallway corner"}
 ```
 
 **Use cases:**
@@ -123,15 +211,9 @@ Rose passes through without stopping.
 
 Rose stops and performs an activity for a specified duration.
 
-```json
-{
-  "type": "linger",
-  "name": "filing documents",
-  "orientation": 90,
-  "time": 60,
-  "animation": "filing",
-  "attachments": [{"item": "Folder", "point": "LeftHand"}]
-}
+**Notecard format:**
+```
+WAYPOINT1={"type":"linger","name":"filing documents","orientation":90,"time":60,"animation":"filing","attachments":[{"item":"Folder","point":"LeftHand"}]}
 ```
 
 **Parameters:**
@@ -149,13 +231,9 @@ Rose stops and performs an activity for a specified duration.
 
 Rose attempts to sit at the waypoint location.
 
-```json
-{
-  "type": "sit",
-  "name": "desk work",
-  "time": 120,
-  "animation": "typing"
-}
+**Notecard format:**
+```
+WAYPOINT2={"type":"sit","name":"desk work","time":120,"animation":"typing"}
 ```
 
 **Important:** The waypoint prim must have a sit target configured for sitting to work properly.
@@ -204,65 +282,36 @@ CHARACTER_AVOIDANCE_MODE: AVOID_CHARACTERS | AVOID_DYNAMIC_OBSTACLES
 
 ### Example 1: Simple Reception Desk Route
 
-**Waypoint0** - Description: `10`
-- Rose pauses at the entrance for 10 seconds
+Add these lines to your `[WPP]WaypointConfig` notecard:
 
-**Waypoint1** - Description:
-```json
-{
-  "type": "linger",
-  "name": "greeting visitors",
-  "orientation": 0,
-  "time": 30
-}
 ```
-
-**Waypoint2** - Description:
-```json
-{
-  "type": "transient",
-  "name": "corridor"
-}
+WAYPOINT0={"type":"linger","name":"greeting at entrance","orientation":0,"time":10,"animation":"","attachments":[]}
+WAYPOINT1={"type":"linger","name":"greeting visitors","orientation":0,"time":30,"animation":"","attachments":[]}
+WAYPOINT2={"type":"transient","name":"corridor"}
 ```
 
 ### Example 2: Office Tasks Route
 
-**Waypoint0** - Description:
-```json
-{
-  "type": "linger",
-  "name": "checking mail",
-  "orientation": 270,
-  "time": 25,
-  "animation": "sorting"
-}
+Add these lines to your `[WPP]WaypointConfig` notecard:
+
+```
+WAYPOINT0={"type":"linger","name":"checking mail","orientation":270,"time":25,"animation":"sorting","attachments":[]}
+WAYPOINT1={"type":"linger","name":"watering plants","orientation":180,"time":45,"animation":"watering","attachments":[{"item":"WateringCan","point":"RightHand"}]}
+WAYPOINT2={"type":"linger","name":"filing documents","orientation":90,"time":60,"animation":"filing","attachments":[{"item":"Folder","point":"LeftHand"}]}
+WAYPOINT3={"type":"sit","name":"desk work","time":120,"animation":"typing"}
 ```
 
-**Waypoint1** - Description:
-```json
-{
-  "type": "linger",
-  "name": "watering plants",
-  "orientation": 180,
-  "time": 45,
-  "animation": "watering",
-  "attachments": [{"item": "WateringCan", "point": "RightHand"}]
-}
-```
+### Example 3: Using Training Wizard
 
-**Waypoint2** - Description:
-```json
-{
-  "type": "linger",
-  "name": "filing documents",
-  "orientation": 90,
-  "time": 60,
-  "animation": "filing",
-  "attachments": [{"item": "Folder", "point": "LeftHand"}]
-}
-```
-
-**Waypoint3** - Description:
+1. Place 3 waypoint prims: Waypoint0, Waypoint1, Waypoint2
+2. Touch Rose and select "Training Mode"
+3. Follow the prompts:
+   - Waypoint0: Type=Linger, Duration=30s, Animation=wave, Orientation=East
+   - Waypoint1: Type=Transient
+   - Waypoint2: Type=Linger, Duration=60s, Animation=idle, Orientation=North
+4. Copy the output from chat
+5. Paste into `[WPP]WaypointConfig` notecard
+6. Save - done!
 ```json
 {
   "type": "sit",
