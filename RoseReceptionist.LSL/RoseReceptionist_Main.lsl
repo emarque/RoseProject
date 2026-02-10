@@ -116,6 +116,28 @@ integer isAdmin(key user)
     return FALSE;
 }
 
+checkMasterKeyAndShowMenu(key toucher, string name)
+{
+    if (SUBSCRIBER_KEY == "")
+    {
+        // No key configured, show user menu
+        showUserMenu(toucher, name);
+        return;
+    }
+    
+    // Try to access a system endpoint to verify master key
+    string url = API_ENDPOINT + "/system/status";
+    
+    key http_request_id = llHTTPRequest(url,
+        [HTTP_METHOD, "GET",
+         HTTP_CUSTOM_HEADER, "X-API-Key", SUBSCRIBER_KEY,
+         HTTP_BODY_MAXLENGTH, 16384],
+        "");
+    
+    // Store toucher info with request for thread-safety
+    http_requests += [http_request_id, "key_check", (string)toucher + "|" + name];
+}
+
 sendSystemRequest(string endpoint, string method, string json)
 {
     string url = API_ENDPOINT + endpoint;
@@ -200,9 +222,17 @@ sendChatRequest(string avatarKey, string avatarName, string message, string sess
     http_requests += [http_request_id, "chat", avatarKey];
 }
 
-handleSuccessResponse(string request_type, string body)
+handleSuccessResponse(string request_type, string request_data, string body)
 {
-    if (request_type == "system_POST" || request_type == "system_GET")
+    if (request_type == "key_check")
+    {
+        // Successfully accessed system endpoint - we have master key
+        // Extract toucher info from request_data
+        list parts = llParseString2List(request_data, ["|"], []);
+        key toucher = (key)llList2String(parts, 0);
+        showAdminMenu(toucher);
+    }
+    else if (request_type == "system_POST" || request_type == "system_GET")
     {
         // System API response
         llOwnerSay("📋 System API Response:");
@@ -260,6 +290,45 @@ string escapeJson(string str)
     str = llDumpList2String(llParseString2List(str, ["\""], []), "\\\"");
     str = llDumpList2String(llParseString2List(str, ["\n"], []), "\\n");
     return str;
+}
+
+handleErrorResponse(integer status, string request_type, string request_data, string body)
+{
+    if (request_type == "key_check")
+    {
+        // Extract toucher info from request_data
+        list parts = llParseString2List(request_data, ["|"], []);
+        key toucher = (key)llList2String(parts, 0);
+        string name = llList2String(parts, 1);
+        
+        if (status == 401)
+        {
+            // Not a master key, show user menu instead
+            showUserMenu(toucher, name);
+        }
+        else
+        {
+            // Other error, default to user menu
+            llRegionSayTo(toucher, 0, "⚠️ Could not verify API key, showing user menu");
+            showUserMenu(toucher, name);
+        }
+    }
+    else if (status == 401)
+    {
+        llOwnerSay("❌ Authentication failed: Invalid or insufficient API key privileges");
+    }
+    else if (status == 403)
+    {
+        llOwnerSay("❌ Access forbidden: " + body);
+    }
+    else if (status == 429)
+    {
+        llOwnerSay("❌ Credit limit exceeded: " + body);
+    }
+    else
+    {
+        llOwnerSay("HTTP Error " + (string)status + ": " + body);
+    }
 }
 
 // ============================================
@@ -377,14 +446,8 @@ default
         key toucher = llDetectedKey(0);
         string name = llDetectedName(0);
         
-        if (isAdmin(toucher))
-        {
-            showAdminMenu(toucher);
-        }
-        else
-        {
-            showUserMenu(toucher, name);
-        }
+        // Check what kind of key we have, then show appropriate menu
+        checkMasterKeyAndShowMenu(toucher, name);
     }
     
     timer()
@@ -492,6 +555,13 @@ default
             }
             else if (message == "Training Mode")
             {
+                // Only allow training for owners
+                if (!isAdmin(id))
+                {
+                    llRegionSayTo(id, 0, "❌ Training mode is only available to authorized owners");
+                    return;
+                }
+                
                 // Start training wizard
                 llRegionSayTo(id, 0, "Starting training mode...");
                 llMessageLinked(LINK_SET, LINK_TRAINING_START, name, id);
@@ -584,23 +654,11 @@ default
         
         if (status == 200)
         {
-            handleSuccessResponse(request_type, body);
-        }
-        else if (status == 401)
-        {
-            llOwnerSay("❌ Authentication failed: Invalid or insufficient API key privileges");
-        }
-        else if (status == 403)
-        {
-            llOwnerSay("❌ Access forbidden: " + body);
-        }
-        else if (status == 429)
-        {
-            llOwnerSay("❌ Credit limit exceeded: " + body);
+            handleSuccessResponse(request_type, request_data, body);
         }
         else
         {
-            llOwnerSay("HTTP Error " + (string)status + ": " + body);
+            handleErrorResponse(status, request_type, request_data, body);
         }
     }
     
