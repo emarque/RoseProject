@@ -97,7 +97,7 @@ sendSystemRequest(string endpoint, string method, string json, key requestingUse
     // Always set content type for PUT/POST requests
     if (method == "PUT" || method == "POST")
     {
-        params += [HTTP_MIMETYPE, "application/json"];
+        params += [HTTP_CUSTOM_HEADER, "Content-Type", "application/json"];
     }
     
     key http_request_id = llHTTPRequest(url, params, json);
