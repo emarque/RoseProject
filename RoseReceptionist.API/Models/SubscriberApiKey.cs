@@ -16,6 +16,7 @@ public class SubscriberApiKey
     public int RequestCount { get; set; }
     public int CreditsUsed { get; set; }
     public int CreditLimit { get; set; }
+    public bool ExemptFromRateLimits { get; set; } = false;
 }
 
 public enum SubscriptionLevel

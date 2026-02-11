@@ -77,7 +77,9 @@ public class ApiKeyAuthenticationMiddleware
 
         // Check credit limits (only for non-system endpoints)
         // CreditLimit of 0 means unlimited
-        if (subscriberKey.CreditLimit > 0 && subscriberKey.CreditsUsed >= subscriberKey.CreditLimit)
+        if (subscriberKey.CreditLimit > 0 && 
+            !subscriberKey.ExemptFromRateLimits && 
+            subscriberKey.CreditsUsed >= subscriberKey.CreditLimit)
         {
             _logger.LogWarning("Credit limit exceeded for: {SubscriberName}", subscriberKey.SubscriberName);
             context.Response.StatusCode = StatusCodes.Status429TooManyRequests;

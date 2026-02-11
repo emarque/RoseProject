@@ -11,6 +11,7 @@ public class GenerateKeyRequest
     public string? OrderNumber { get; set; }
     public int? CreditLimit { get; set; }
     public DateTime? ExpiresAt { get; set; }
+    public bool ExemptFromRateLimits { get; set; } = false;
 }
 
 public class GenerateKeyResponse
@@ -52,6 +53,7 @@ public class SubscriberResponse
     public int RequestCount { get; set; }
     public int CreditsUsed { get; set; }
     public int CreditLimit { get; set; }
+    public bool ExemptFromRateLimits { get; set; }
 }
 
 public class SystemStatusResponse
@@ -70,4 +72,9 @@ public class LogEntry
     public string Level { get; set; } = string.Empty;
     public string Message { get; set; } = string.Empty;
     public string? SubscriberName { get; set; }
+}
+
+public class ExemptionRequest
+{
+    public bool ExemptFromRateLimits { get; set; }
 }
