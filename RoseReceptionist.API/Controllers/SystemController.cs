@@ -57,7 +57,8 @@ public class SystemController : ControllerBase
             ExpiresAt = request.ExpiresAt,
             RequestCount = 0,
             CreditsUsed = 0,
-            CreditLimit = creditLimit
+            CreditLimit = creditLimit,
+            ExemptFromRateLimits = request.ExemptFromRateLimits
         };
 
         _context.SubscriberApiKeys.Add(subscriberKey);
@@ -131,7 +132,8 @@ public class SystemController : ControllerBase
                 LastUsedAt = s.LastUsedAt,
                 RequestCount = s.RequestCount,
                 CreditsUsed = s.CreditsUsed,
-                CreditLimit = s.CreditLimit
+                CreditLimit = s.CreditLimit,
+                ExemptFromRateLimits = s.ExemptFromRateLimits
             })
             .ToListAsync();
 
@@ -162,7 +164,8 @@ public class SystemController : ControllerBase
             LastUsedAt = subscriber.LastUsedAt,
             RequestCount = subscriber.RequestCount,
             CreditsUsed = subscriber.CreditsUsed,
-            CreditLimit = subscriber.CreditLimit
+            CreditLimit = subscriber.CreditLimit,
+            ExemptFromRateLimits = subscriber.ExemptFromRateLimits
         });
     }
 
@@ -191,6 +194,27 @@ public class SystemController : ControllerBase
             message = "Credits updated successfully", 
             creditLimit = subscriber.CreditLimit,
             creditsUsed = subscriber.CreditsUsed
+        });
+    }
+
+    [HttpPut("subscribers/{id}/exemption")]
+    public async Task<ActionResult> UpdateRateLimitExemption(Guid id, [FromBody] ExemptionRequest request)
+    {
+        var subscriber = await _context.SubscriberApiKeys.FindAsync(id);
+        if (subscriber == null)
+        {
+            return NotFound(new { error = "Subscriber not found" });
+        }
+
+        subscriber.ExemptFromRateLimits = request.ExemptFromRateLimits;
+        await _context.SaveChangesAsync();
+
+        _logger.LogInformation("Updated rate limit exemption for subscriber {SubscriberName}: Exempt={Exempt}", 
+            subscriber.SubscriberName, subscriber.ExemptFromRateLimits);
+
+        return Ok(new { 
+            message = "Exemption updated", 
+            exemptFromRateLimits = subscriber.ExemptFromRateLimits 
         });
     }
 

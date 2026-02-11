@@ -77,7 +77,9 @@ public class ApiKeyAuthenticationMiddleware
 
         // Check credit limits (only for non-system endpoints)
         // CreditLimit of 0 means unlimited
-        if (subscriberKey.CreditLimit > 0 && subscriberKey.CreditsUsed >= subscriberKey.CreditLimit)
+        if (subscriberKey.CreditLimit > 0 && 
+            !subscriberKey.ExemptFromRateLimits && 
+            subscriberKey.CreditsUsed >= subscriberKey.CreditLimit)
         {
             _logger.LogWarning("Credit limit exceeded for: {SubscriberName}", subscriberKey.SubscriberName);
             context.Response.StatusCode = StatusCodes.Status429TooManyRequests;
@@ -96,13 +98,18 @@ public class ApiKeyAuthenticationMiddleware
         subscriberKey.LastUsedAt = DateTime.UtcNow;
         
         // Credit calculation: 1 credit per request (can be customized per endpoint)
-        subscriberKey.CreditsUsed++;
+        // Don't track credits for exempt accounts
+        if (!subscriberKey.ExemptFromRateLimits)
+        {
+            subscriberKey.CreditsUsed++;
+        }
         
         await dbContext.SaveChangesAsync();
 
-        _logger.LogInformation("API request from subscriber: {SubscriberName} ({Level})", 
+        _logger.LogInformation("API request from subscriber: {SubscriberName} ({Level}){Exempt}", 
             subscriberKey.SubscriberName, 
-            (SubscriptionLevel)subscriberKey.SubscriptionLevel);
+            (SubscriptionLevel)subscriberKey.SubscriptionLevel,
+            subscriberKey.ExemptFromRateLimits ? " [EXEMPT]" : "");
 
         await _next(context);
     }
