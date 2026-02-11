@@ -387,6 +387,9 @@ string getWaypointConfig(integer waypoint_number)
 
 createPathfindingCharacter()
 {
+    // Updated character parameters per redesign requirements
+    // Smaller dimensions (radius 0.125, length 0.25) for tighter navigation
+    // AVOID_NONE for direct path navigation without obstacle avoidance
     llCreateCharacter([
         CHARACTER_TYPE, CHARACTER_TYPE_A,
         CHARACTER_MAX_SPEED, 2.0,

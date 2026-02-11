@@ -537,17 +537,13 @@ default
                 }
                 else if (message == "Custom")
                 {
-                    // For now, default to 30
-                    wp_duration = 30;
-                    llRegionSayTo(training_user, 0, "⚠️ Custom duration not yet implemented. Using 30s.");
-                    if (wp_type == "linger")
-                    {
-                        showDirectionMenu();
-                    }
-                    else
-                    {
-                        showAnimationMenu();
-                    }
+                    // Custom duration - use textbox for user input
+                    clearListeners();
+                    textbox_channel = -1000 - (integer)llFrand(9999);
+                    textbox_listener = llListen(textbox_channel, "", training_user, "");
+                    llTextBox(training_user, "Enter duration in seconds:", textbox_channel);
+                    training_state = "CUSTOM_DURATION";
+                    llSetTimerEvent(60.0);
                 }
             }
             else if (training_state == "DIRECTION")
@@ -597,6 +593,8 @@ default
                 else if (message != "None")
                 {
                     // Add attachable with default attachment point (RightHand)
+                    // Note: RightHand is used as default for all attachables for simplicity.
+                    // Advanced users can manually edit the JSON output to specify different attachment points.
                     wp_attachments += [message, "RightHand"];
                     // Show menu again for multiple selections
                     showAttachablesMenu();
@@ -623,6 +621,29 @@ default
                 {
                     // Linger or Sit: show duration menu
                     showDurationMenu();
+                }
+            }
+            else if (training_state == "CUSTOM_DURATION")
+            {
+                // Parse custom duration input
+                integer duration = (integer)message;
+                if (duration > 0)
+                {
+                    wp_duration = duration;
+                }
+                else
+                {
+                    wp_duration = 30; // Default fallback
+                    llRegionSayTo(training_user, 0, "⚠️ Invalid duration. Using 30s.");
+                }
+                
+                if (wp_type == "linger")
+                {
+                    showDirectionMenu();
+                }
+                else
+                {
+                    showAnimationMenu();
                 }
             }
         }
