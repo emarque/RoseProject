@@ -42,6 +42,25 @@ RECEPTIONIST_NAME=Rose
 # These items will not appear in animation/attachment selection menus
 IGNORE_ITEMS=RoseConfig,[WPP]WaypointConfig,RoseReceptionist_Main,RoseReceptionist_Chat,RoseReceptionist_GoWander3,RoseReceptionist_Animations,RoseReceptionist_Sensor,RoseReceptionist_Training
 
+# ============================================
+# AVAILABLE ANIMATIONS AND ATTACHABLES
+# ============================================
+
+[AvailableAnimations]
+wave
+offer
+think
+typing
+watering
+reaching
+
+[AvailableAttachables]
+Clipboard
+Coffee Mug
+Watering Can
+Folder
+Pen
+
 # Notes:
 # - Lines starting with # are comments
 # - Empty lines are ignored
