@@ -80,7 +80,7 @@ integer isAuthorized(key user)
     return FALSE;
 }
 
-sendSystemRequest(string endpoint, string method, string json)
+sendSystemRequest(string endpoint, string method, string json, key requestingUser)
 {
     if (SUBSCRIBER_KEY == "")
     {
@@ -100,7 +100,7 @@ sendSystemRequest(string endpoint, string method, string json)
     }
     
     key http_request_id = llHTTPRequest(url, params, json);
-    http_requests += [http_request_id, "system_" + method, endpoint];
+    http_requests += [http_request_id, "system_" + method, endpoint, (string)requestingUser];
 }
 
 string extractJsonString(string json, string json_key)
@@ -126,7 +126,7 @@ string escapeJson(string str)
     return str;
 }
 
-handleSuccessResponse(string request_type, string request_data, string body)
+handleSuccessResponse(string request_type, string request_data, string body, key requestingUser)
 {
     if (request_type == "system_POST" || request_type == "system_GET")
     {
@@ -140,7 +140,7 @@ handleSuccessResponse(string request_type, string request_data, string body)
             cached_subscribers = parseSubscriberList(body);
             if (currentMenuAction == "manage_tiers")
             {
-                showSubscriberListMenu();
+                showSubscriberListMenu(requestingUser);
             }
         }
     }
@@ -216,7 +216,7 @@ list parseSubscriberList(string json)
     return subscribers;
 }
 
-showSubscriberListMenu()
+showSubscriberListMenu(key user)
 {
     if (llGetListLength(cached_subscribers) == 0)
     {
@@ -231,13 +231,13 @@ showSubscriberListMenu()
     }
     
     subListChannel = -2000 - (integer)llFrand(9999);
-    subListListener = llListen(subListChannel, "", "", "");
+    subListListener = llListen(subListChannel, "", user, "");
     
     // Build button list (max 12 buttons)
     list buttons = [];
     integer i;
     integer count = llGetListLength(cached_subscribers) / 3;
-    if (count > 11) count = 11; // Leave room for "More"/"Close"
+    if (count > 11) count = 11; // Leave room for "Close"
     
     for (i = 0; i < count; i++)
     {
@@ -264,13 +264,11 @@ showSubscriberListMenu()
     
     string message = "Select subscriber to toggle rate limit exemption:\n✓ = Currently exempt";
     
-    key user = llGetOwner(); // Assumes single owner, adjust if needed
     llDialog(user, message, buttons, subListChannel);
-    
     llSetTimerEvent(60.0);
 }
 
-toggleExemption(string subscriberName)
+toggleExemption(string subscriberName, key requestingUser)
 {
     // Find subscriber in cached list
     integer i;
@@ -285,7 +283,7 @@ toggleExemption(string subscriberName)
             
             // Send update request
             string json = "{\"exemptFromRateLimits\":" + (string)newExempt + "}";
-            sendSystemRequest("/system/subscribers/" + id + "/exemption", "PUT", json);
+            sendSystemRequest("/system/subscribers/" + id + "/exemption", "PUT", json, requestingUser);
             
             // Update cache
             cached_subscribers = llListReplaceList(cached_subscribers, [newExempt], i + 2, i + 2);
@@ -484,7 +482,7 @@ default
                     llRegionSayTo(id, 0, "❌ Error: SUBSCRIBER_KEY not configured");
                     return;
                 }
-                sendSystemRequest("/system/subscribers", "GET", "");
+                sendSystemRequest("/system/subscribers", "GET", "", id);
             }
             else if (message == "Manage Tiers")
             {
@@ -494,7 +492,7 @@ default
                     return;
                 }
                 currentMenuAction = "manage_tiers";
-                sendSystemRequest("/system/subscribers", "GET", "");
+                sendSystemRequest("/system/subscribers", "GET", "", id);
             }
             else if (message == "Status")
             {
@@ -503,7 +501,7 @@ default
                     llRegionSayTo(id, 0, "❌ Error: SUBSCRIBER_KEY not configured");
                     return;
                 }
-                sendSystemRequest("/system/status", "GET", "");
+                sendSystemRequest("/system/status", "GET", "", id);
             }
             else if (message == "Logs")
             {
@@ -512,7 +510,7 @@ default
                     llRegionSayTo(id, 0, "❌ Error: SUBSCRIBER_KEY not configured");
                     return;
                 }
-                sendSystemRequest("/system/logs?count=10", "GET", "");
+                sendSystemRequest("/system/logs?count=10", "GET", "", id);
             }
             else if (message == "Close")
             {
@@ -545,11 +543,11 @@ default
                 subscriberName = llGetSubString(message, 2, -1);
             }
             
-            toggleExemption(subscriberName);
+            toggleExemption(subscriberName, id);
             
             // Refresh the menu after a brief delay
             llSleep(1.0);
-            showSubscriberListMenu();
+            showSubscriberListMenu(id);
         }
         else if (channel == adminTextboxChannel && adminTextboxListener != 0)
         {
@@ -566,7 +564,7 @@ default
                 "\"notes\":\"Created via Admin Terminal\"" +
                 "}";
             
-            sendSystemRequest("/system/subscribers/generate-key", "POST", json);
+            sendSystemRequest("/system/subscribers/generate-key", "POST", json, id);
         }
     }
     
@@ -582,13 +580,14 @@ default
         
         string request_type = llList2String(http_requests, idx + 1);
         string request_data = llList2String(http_requests, idx + 2);
+        key requestingUser = (key)llList2String(http_requests, idx + 3);
         
         // Remove from tracking list
-        http_requests = llDeleteSubList(http_requests, idx, idx + 2);
+        http_requests = llDeleteSubList(http_requests, idx, idx + 3);
         
         if (status == 200)
         {
-            handleSuccessResponse(request_type, request_data, body);
+            handleSuccessResponse(request_type, request_data, body, requestingUser);
         }
         else
         {

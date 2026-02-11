@@ -324,6 +324,7 @@ sendActivityBatch()
     llOwnerSay("📊 Sent activity batch: " + (string)(llGetListLength(pending_activities) / 4) + " activities");
     
     pending_activities = [];
+    tracked_activities = []; // Clear tracked activities after batch send
     last_batch_time = llGetUnixTime();
 }
 
@@ -635,6 +636,9 @@ default
     state_entry()
     {
         llOwnerSay("Rose Prim-Based Navigation System active");
+        
+        // Initialize batch timing
+        last_batch_time = llGetUnixTime();
         
         // Read configuration from notecard
         if (llGetInventoryType(notecardName) == INVENTORY_NOTECARD)

@@ -39,6 +39,14 @@ public class ActivitiesController : ControllerBase
                     continue;
                 }
 
+                // Validate timestamp (should be within reasonable range)
+                if (activity.Timestamp <= 0 || activity.Timestamp > DateTimeOffset.UtcNow.ToUnixTimeSeconds() + 3600)
+                {
+                    _logger.LogWarning("Skipping activity with invalid timestamp: {Name}, Timestamp: {Timestamp}", 
+                        activity.Name, activity.Timestamp);
+                    continue;
+                }
+
                 var activityLog = new ActivityLog
                 {
                     Id = Guid.NewGuid(),

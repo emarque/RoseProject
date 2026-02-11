@@ -374,10 +374,12 @@ handleSuccessResponse(string request_type, string request_data, string body)
             cached_subscribers = parseSubscriberList(body);
             if (currentMenuAction == "manage_tiers")
             {
-                // Show subscriber list menu to the last admin user
-                // Note: In a multi-admin scenario, you'd need to track the requesting user
-                key admin = llGetOwner(); // Fallback to owner
+                // Show subscriber list menu to the requesting user
+                // Note: We need to track the requesting user; for now use owner as fallback
+                // In a full implementation, store the requesting user with the HTTP request
+                key admin = llGetOwner();
                 showSubscriberListMenu(admin);
+                currentMenuAction = ""; // Reset action
             }
         }
     }
