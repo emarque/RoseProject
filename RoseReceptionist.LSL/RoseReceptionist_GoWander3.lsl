@@ -73,6 +73,10 @@ list activity_attachments = [];
 integer activity_duration = 0;
 integer activity_start_time = 0;
 
+// HTTP error tracking (to prevent spam)
+integer last_429_time = 0;
+integer error_429_count = 0;
+
 // ============================================================================
 // UTILITY FUNCTIONS
 // ============================================================================
@@ -954,9 +958,36 @@ default
                 integer idEnd = llSubStringIndex(llGetSubString(body, idStart, -1), "\"");
                 current_activity_id = llGetSubString(body, idStart, idStart + idEnd - 1);
             }
+            // Reset 429 counter on success
+            if (error_429_count > 0)
+            {
+                error_429_count = 0;
+            }
+        }
+        else if (status == 429)
+        {
+            // Rate limiting - suppress spam, only log summary periodically
+            integer now = llGetUnixTime();
+            error_429_count++;
+            
+            // Log only once per 5 minutes to avoid spam
+            if (now - last_429_time > 300)
+            {
+                if (error_429_count > 1)
+                {
+                    llOwnerSay("⚠️ API rate limiting active (HTTP 429) - " + (string)error_429_count + " requests throttled. This is normal during high activity.");
+                }
+                else
+                {
+                    llOwnerSay("⚠️ API rate limiting active (HTTP 429). Activity logging will retry automatically.");
+                }
+                last_429_time = now;
+                error_429_count = 0;
+            }
         }
         else
         {
+            // Log other HTTP errors (these indicate real problems)
             llOwnerSay("HTTP Error: " + (string)status);
         }
     }
