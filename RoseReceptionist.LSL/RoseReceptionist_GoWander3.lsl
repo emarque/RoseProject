@@ -23,6 +23,7 @@ float SENSOR_REPEAT = 5.0;
 // Navigation
 float CHARACTER_SPEED = 0.5;
 integer NAVIGATION_TIMEOUT = 60; // seconds
+float WAYPOINT_POSITION_TOLERANCE = 0.1; // meters
 
 // Shift times (from config)
 string SHIFT_START_TIME = "09:00";
@@ -38,7 +39,7 @@ string notecardName = "RoseConfig";
 key waypointConfigQuery;
 integer waypointConfigLine = 0;
 string WAYPOINT_CONFIG_NOTECARD = "[WPP]WaypointConfig";
-list waypoint_configs = []; // List of [waypoint_number, json_config_string]
+list waypoint_configs = []; // [wp_num, wp_pos, json_config, ...]
 
 // ============================================================================
 // STATE VARIABLES
@@ -284,8 +285,6 @@ logActivity(string activityName, string activityType, string location, integer o
          HTTP_CUSTOM_HEADER, "X-API-Key", API_KEY],
         json
     );
-    
-    llOwnerSay("Activity logged: " + activityName);
 }
 
 // HTTP request to complete activity
@@ -349,15 +348,29 @@ loadWaypointConfig()
     }
 }
 
+// Get waypoint position by waypoint number
+vector getWaypointPosition(integer waypoint_number)
+{
+    integer i;
+    for (i = 0; i < llGetListLength(waypoint_configs); i += 3)
+    {
+        if (llList2Integer(waypoint_configs, i) == waypoint_number)
+        {
+            return llList2Vector(waypoint_configs, i + 1);
+        }
+    }
+    return ZERO_VECTOR;
+}
+
 // Get waypoint configuration by waypoint number
 string getWaypointConfig(integer waypoint_number)
 {
     integer i;
-    for (i = 0; i < llGetListLength(waypoint_configs); i += 2)
+    for (i = 0; i < llGetListLength(waypoint_configs); i += 3)
     {
         if (llList2Integer(waypoint_configs, i) == waypoint_number)
         {
-            return llList2String(waypoint_configs, i + 1);
+            return llList2String(waypoint_configs, i + 2);
         }
     }
     return "";
@@ -396,19 +409,40 @@ initializeNavigation()
 
 processWaypoint(key wpKey, vector wpPos)
 {
-    // Get waypoint details
-    list details = llGetObjectDetails(wpKey, [OBJECT_NAME, OBJECT_DESC]);
-    string wpName = llList2String(details, 0);
-    string wpDesc = llList2String(details, 1);
+    string wpName = "";
+    string wpDesc = "";
+    integer wpNumber = -1;
     
-    // Extract waypoint number from name
-    integer wpNumber = extractWaypointNumber(wpName);
+    // Get waypoint details from prim if available
+    if (wpKey != NULL_KEY)
+    {
+        list details = llGetObjectDetails(wpKey, [OBJECT_NAME, OBJECT_DESC]);
+        wpName = llList2String(details, 0);
+        wpDesc = llList2String(details, 1);
+        wpNumber = extractWaypointNumber(wpName);
+    }
+    else
+    {
+        // No prim key, use position to find waypoint number from configs
+        integer i;
+        for (i = 0; i < llGetListLength(waypoint_configs); i += 3)
+        {
+            vector configPos = llList2Vector(waypoint_configs, i + 1);
+            if (llVecDist(configPos, wpPos) < WAYPOINT_POSITION_TOLERANCE)
+            {
+                wpNumber = llList2Integer(waypoint_configs, i);
+                wpName = "Waypoint" + (string)wpNumber;
+                jump found;
+            }
+        }
+        @found;
+    }
     
     // Try to get configuration from notecard first
     string configJson = getWaypointConfig(wpNumber);
     
     // Fall back to prim description if no notecard config
-    if (configJson == "")
+    if (configJson == "" && wpDesc != "")
     {
         configJson = wpDesc;
     }
@@ -423,8 +457,6 @@ processWaypoint(key wpKey, vector wpPos)
     activity_animation = llList2String(wpData, 4);
     string attachments_json = llList2String(wpData, 5);
     
-    llOwnerSay("Waypoint: " + wpName + " - " + current_activity_name + " (" + activity_type + ")");
-    
     // Log activity start
     logActivity(current_activity_name, activity_type, wpName, activity_orientation, activity_animation, attachments_json);
     activity_start_time = llGetUnixTime();
@@ -433,14 +465,12 @@ processWaypoint(key wpKey, vector wpPos)
     if (activity_type == "transient")
     {
         // Pass through without stopping
-        llOwnerSay("Passing through " + wpName);
         llSleep(1.0);
         moveToNextWaypoint();
     }
     else if (activity_type == "linger")
     {
         // Stop and perform actions
-        llOwnerSay("Lingering at " + wpName + " for " + (string)activity_duration + " seconds");
         
         // Face direction if specified
         if (activity_orientation != -1)
@@ -472,7 +502,6 @@ processWaypoint(key wpKey, vector wpPos)
         // NOTE: For sitting to work properly, the waypoint prim itself should have a sit target configured.
         // This script cannot set sit targets on other objects, only the object it's in.
         // The avatar must use llSitOnObject() or the user must manually click to sit.
-        llOwnerSay("Sit action at " + wpName + " - Please ensure waypoint has sit target configured");
         
         // Notify to play sit animation
         if (activity_animation != "")
@@ -498,39 +527,65 @@ moveToNextWaypoint()
         current_activity_id = "";
     }
     
-    integer num_waypoints = llGetListLength(waypoints) / 4;
-    
+    integer num_waypoints = llGetListLength(waypoint_configs) / 3;
     if (num_waypoints == 0)
     {
-        llOwnerSay("No waypoints found. Scanning again...");
-        llSetTimerEvent(10.0);
-        return;
+        // No configs, fall back to scanning waypoints from prims
+        num_waypoints = llGetListLength(waypoints) / 4;
+        if (num_waypoints == 0)
+        {
+            llSetTimerEvent(30.0);
+            return;
+        }
     }
     
-    // Move to next waypoint
     current_waypoint_index++;
-    
     if (current_waypoint_index >= num_waypoints)
     {
-        // Completed all waypoints, loop back to start
         current_waypoint_index = 0;
-        llOwnerSay("Completed route. Starting over...");
     }
     
-    current_target_key = llList2Key(waypoints, current_waypoint_index * 4);
-    integer waypoint_num = llList2Integer(waypoints, current_waypoint_index * 4 + 1);
-    string waypoint_name = llList2String(waypoints, current_waypoint_index * 4 + 2);
-    current_target_pos = llList2Vector(waypoints, current_waypoint_index * 4 + 3);
+    integer wpNumber;
     
-    llOwnerSay("Moving to " + waypoint_name + " (" + WAYPOINT_PREFIX + (string)waypoint_num + ")");
+    // Use waypoint configs if available (new format with positions)
+    if (llGetListLength(waypoint_configs) > 0)
+    {
+        wpNumber = llList2Integer(waypoint_configs, current_waypoint_index * 3);
+        current_target_pos = llList2Vector(waypoint_configs, current_waypoint_index * 3 + 1);
+        
+        // Find matching waypoint prim for key (if scanned)
+        integer i;
+        integer found = FALSE;
+        for (i = 0; i < llGetListLength(waypoints); i += 4)
+        {
+            if (llList2Integer(waypoints, i + 1) == wpNumber)
+            {
+                current_target_key = llList2Key(waypoints, i);
+                found = TRUE;
+                jump done;
+            }
+        }
+        @done;
+        
+        if (!found)
+        {
+            current_target_key = NULL_KEY;
+        }
+    }
+    else
+    {
+        // Legacy mode: use waypoint prims only
+        current_target_key = llList2Key(waypoints, current_waypoint_index * 4);
+        wpNumber = llList2Integer(waypoints, current_waypoint_index * 4 + 1);
+        current_target_pos = llList2Vector(waypoints, current_waypoint_index * 4 + 3);
+    }
     
-    // Start navigation
+    llSay(0, "→ Waypoint " + (string)wpNumber);
+    
     llNavigateTo(current_target_pos, []);
     is_navigating = TRUE;
     navigation_start_time = llGetUnixTime();
     current_state = "WALKING";
-    
-    // Set timeout for navigation
     llSetTimerEvent(1.0);
 }
 
@@ -634,8 +689,19 @@ default
                             string numStr = llGetSubString(configKey, 8, -1);
                             integer wpNum = (integer)numStr;
                             
-                            // Store configuration
-                            waypoint_configs += [wpNum, value];
+                            // Parse position and JSON: <x,y,z>|{json}
+                            integer pipePos = llSubStringIndex(value, "|");
+                            if (pipePos != -1)
+                            {
+                                string posStr = llGetSubString(value, 0, pipePos - 1);
+                                string jsonStr = llGetSubString(value, pipePos + 1, -1);
+                                vector pos = (vector)posStr;
+                                waypoint_configs += [wpNum, pos, jsonStr];
+                            }
+                            else
+                            {
+                                llOwnerSay("⚠️ Malformed config line: " + configKey + " (missing '|' separator)");
+                            }
                         }
                     }
                 }
@@ -647,7 +713,7 @@ default
             else
             {
                 // Finished reading waypoint config
-                integer configCount = llGetListLength(waypoint_configs) / 2;
+                integer configCount = llGetListLength(waypoint_configs) / 3;
                 llOwnerSay("✅ Loaded " + (string)configCount + " waypoint configurations");
                 initializeNavigation();
             }
@@ -683,13 +749,11 @@ default
                     vector wpPos = llDetectedPos(i);
                     
                     waypoints += [wpKey, wpNumber, primName, wpPos];
-                    llOwnerSay("✓ Found: " + primName + " (#" + (string)wpNumber + ")");
                 }
             }
         }
         
         waypoints = sortWaypointsByNumber(waypoints);
-        llOwnerSay("📍 Total: " + (string)(llGetListLength(waypoints) / 4));
         
         // Start navigation to first waypoint
         if (llGetListLength(waypoints) > 0)
@@ -717,7 +781,6 @@ default
             // Check for navigation timeout
             if (llGetUnixTime() - navigation_start_time > NAVIGATION_TIMEOUT)
             {
-                llOwnerSay("Navigation timeout. Moving to next waypoint.");
                 llNavigateTo(llGetPos(), []); // Stop current navigation
                 moveToNextWaypoint();
             }
@@ -736,7 +799,6 @@ default
         else if (current_state == "LINGERING" || current_state == "SITTING")
         {
             // Duration completed
-            llOwnerSay("Activity duration completed");
             
             // Stop animation
             if (activity_animation != "")
