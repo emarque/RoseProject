@@ -94,7 +94,8 @@ sendSystemRequest(string endpoint, string method, string json, key requestingUse
                    HTTP_CUSTOM_HEADER, "X-API-Key", SUBSCRIBER_KEY,
                    HTTP_BODY_MAXLENGTH, 16384];
     
-    if (json != "")
+    // Always set content type for PUT/POST requests
+    if (method == "PUT" || method == "POST")
     {
         params += [HTTP_MIMETYPE, "application/json"];
     }

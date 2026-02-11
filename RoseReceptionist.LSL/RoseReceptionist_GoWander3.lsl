@@ -283,7 +283,7 @@ executeConfirmedAction(string action, string data)
         }
         else
         {
-            startWaypointScan();
+            loadWaypointConfig();
         }
     }
 }
@@ -987,7 +987,7 @@ default
             // Respond with current activity
             string response = "I'm currently " + current_activity_name;
             if (activity_type == "linger")
-                response += " at " + llList2String(waypoints, current_waypoint_index * 4 + 2);
+                response += " at " + llList2String(waypoint_configs, current_waypoint_index * 3 + 2);
             
             llMessageLinked(LINK_SET, LINK_ACTIVITY_UPDATE, response, NULL_KEY);
         }
