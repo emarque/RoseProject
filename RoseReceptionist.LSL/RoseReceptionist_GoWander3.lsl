@@ -41,6 +41,11 @@ integer waypointConfigLine = 0;
 string WAYPOINT_CONFIG_NOTECARD = "[WPP]WaypointConfig";
 list waypoint_configs = []; // [wp_num, wp_pos, json_config, ...]
 
+// Available animations and attachables from RoseConfig
+list available_animations = [];
+list available_attachables = [];
+string current_section = "";
+
 // ============================================================================
 // STATE VARIABLES
 // ============================================================================
@@ -387,9 +392,9 @@ createPathfindingCharacter()
         CHARACTER_MAX_SPEED, 2.0,
         CHARACTER_DESIRED_SPEED, 1.5,
         CHARACTER_DESIRED_TURN_SPEED, 1.8,
-        CHARACTER_RADIUS, 0.5,
-        CHARACTER_LENGTH, 1.0,
-        CHARACTER_AVOIDANCE_MODE, AVOID_CHARACTERS | AVOID_DYNAMIC_OBSTACLES
+        CHARACTER_RADIUS, 0.125,
+        CHARACTER_LENGTH, 0.25,
+        CHARACTER_AVOIDANCE_MODE, AVOID_NONE
     ]);
     llOwnerSay("✅ Pathfinding character created");
 }
@@ -580,9 +585,7 @@ moveToNextWaypoint()
         current_target_pos = llList2Vector(waypoints, current_waypoint_index * 4 + 3);
     }
     
-    llSay(0, "→ Waypoint " + (string)wpNumber);
-    
-    llNavigateTo(current_target_pos, []);
+    llNavigateTo(current_target_pos, [FORCE_DIRECT_PATH, TRUE]);
     is_navigating = TRUE;
     navigation_start_time = llGetUnixTime();
     current_state = "WALKING";
@@ -622,28 +625,50 @@ default
                 // Process notecard line
                 data = llStringTrim(data, STRING_TRIM);
                 
-                // Skip empty lines and comments
-                if (data != "" && llGetSubString(data, 0, 0) != "#")
+                // Check for section headers
+                if (data == "[AvailableAnimations]")
                 {
-                    // Parse KEY=VALUE
-                    integer equals = llSubStringIndex(data, "=");
-                    if (equals != -1)
+                    current_section = "animations";
+                }
+                else if (data == "[AvailableAttachables]")
+                {
+                    current_section = "attachables";
+                }
+                // Skip empty lines and comments
+                else if (data != "" && llGetSubString(data, 0, 0) != "#")
+                {
+                    // If we're in a section, add to appropriate list
+                    if (current_section == "animations" && llSubStringIndex(data, "=") == -1)
                     {
-                        string configKey = llStringTrim(llGetSubString(data, 0, equals - 1), STRING_TRIM);
-                        string value = llStringTrim(llGetSubString(data, equals + 1, -1), STRING_TRIM);
-                        
-                        if (configKey == "WAYPOINT_PREFIX")
+                        available_animations += [data];
+                    }
+                    else if (current_section == "attachables" && llSubStringIndex(data, "=") == -1)
+                    {
+                        available_attachables += [data];
+                    }
+                    else
+                    {
+                        // Parse KEY=VALUE (resets current_section)
+                        integer equals = llSubStringIndex(data, "=");
+                        if (equals != -1)
                         {
-                            WAYPOINT_PREFIX = value;
-                            llOwnerSay("✅ WAYPOINT_PREFIX: " + WAYPOINT_PREFIX);
-                        }
-                        else if (configKey == "API_ENDPOINT")
-                        {
-                            API_ENDPOINT = value;
-                        }
-                        else if (configKey == "API_KEY" || configKey == "SUBSCRIBER_KEY")
-                        {
-                            API_KEY = value;
+                            current_section = "";
+                            string configKey = llStringTrim(llGetSubString(data, 0, equals - 1), STRING_TRIM);
+                            string value = llStringTrim(llGetSubString(data, equals + 1, -1), STRING_TRIM);
+                            
+                            if (configKey == "WAYPOINT_PREFIX")
+                            {
+                                WAYPOINT_PREFIX = value;
+                                llOwnerSay("✅ WAYPOINT_PREFIX: " + WAYPOINT_PREFIX);
+                            }
+                            else if (configKey == "API_ENDPOINT")
+                            {
+                                API_ENDPOINT = value;
+                            }
+                            else if (configKey == "API_KEY" || configKey == "SUBSCRIBER_KEY")
+                            {
+                                API_KEY = value;
+                            }
                         }
                     }
                 }
@@ -656,6 +681,14 @@ default
             {
                 // Finished reading RoseConfig, now load waypoint config
                 llOwnerSay("Configuration loaded.");
+                if (llGetListLength(available_animations) > 0)
+                {
+                    llOwnerSay("✅ Loaded " + (string)llGetListLength(available_animations) + " animations");
+                }
+                if (llGetListLength(available_attachables) > 0)
+                {
+                    llOwnerSay("✅ Loaded " + (string)llGetListLength(available_attachables) + " attachables");
+                }
                 loadWaypointConfig();
                 
                 // If no waypoint config notecard, start navigation

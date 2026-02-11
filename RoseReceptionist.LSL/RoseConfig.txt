@@ -29,3 +29,18 @@ CHAT_RANGE=20
 
 # Receptionist Name (what she responds to in chat)
 RECEPTIONIST_NAME=Rose
+
+[AvailableAnimations]
+wave
+offer
+think
+typing
+watering
+reaching
+
+[AvailableAttachables]
+Clipboard
+Coffee Mug
+Watering Can
+Folder
+Pen
