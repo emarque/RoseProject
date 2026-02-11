@@ -219,7 +219,7 @@ sendSystemRequest(string endpoint, string method, string json)
     // Always set content type for PUT/POST requests
     if (method == "PUT" || method == "POST")
     {
-        params += [HTTP_MIMETYPE, "application/json"];
+        params += [HTTP_CUSTOM_HEADER, "Content-Type", "application/json"];
     }
     
     key http_request_id = llHTTPRequest(url, params, json);
@@ -249,7 +249,7 @@ sendArrivalRequest(string avatarKey, string avatarName, string location)
     
     key http_request_id = llHTTPRequest(url,
         [HTTP_METHOD, "POST",
-         HTTP_MIMETYPE, "application/json",
+         HTTP_CUSTOM_HEADER, "Content-Type", "application/json",
          HTTP_CUSTOM_HEADER, "X-API-Key", SUBSCRIBER_KEY,
          HTTP_BODY_MAXLENGTH, 16384],
         json);
@@ -285,7 +285,7 @@ sendChatRequest(string avatarKey, string avatarName, string message, string sess
     
     key http_request_id = llHTTPRequest(url,
         [HTTP_METHOD, "POST",
-         HTTP_MIMETYPE, "application/json",
+         HTTP_CUSTOM_HEADER, "Content-Type", "application/json",
          HTTP_CUSTOM_HEADER, "X-API-Key", SUBSCRIBER_KEY,
          HTTP_BODY_MAXLENGTH, 16384],
         json);

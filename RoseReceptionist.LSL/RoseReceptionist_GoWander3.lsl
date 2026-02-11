@@ -379,7 +379,7 @@ sendActivityBatch()
     // Send batch
     key http_request_id = llHTTPRequest(API_ENDPOINT + "/activities/batch",
         [HTTP_METHOD, "POST",
-         HTTP_MIMETYPE, "application/json",
+         HTTP_CUSTOM_HEADER, "Content-Type", "application/json",
          HTTP_CUSTOM_HEADER, "X-API-Key", API_KEY,
          HTTP_BODY_MAXLENGTH, 16384],
         json);
@@ -413,7 +413,7 @@ logActivity(string activityName, string activityType, string location, integer o
     key http_request_id = llHTTPRequest(
         API_ENDPOINT + "/reports/activities",
         [HTTP_METHOD, "POST",
-         HTTP_MIMETYPE, "application/json",
+         HTTP_CUSTOM_HEADER, "Content-Type", "application/json",
          HTTP_CUSTOM_HEADER, "X-API-Key", API_KEY],
         json
     );
@@ -427,7 +427,7 @@ completeActivity(string activityId)
     key http_request_id = llHTTPRequest(
         API_ENDPOINT + "/reports/activities/" + activityId + "/complete",
         [HTTP_METHOD, "PUT",
-         HTTP_MIMETYPE, "application/json",
+         HTTP_CUSTOM_HEADER, "Content-Type", "application/json",
          HTTP_CUSTOM_HEADER, "X-API-Key", API_KEY],
         "{}"
     );
@@ -455,7 +455,7 @@ generateDailyReport()
     key http_request_id = llHTTPRequest(
         API_ENDPOINT + "/reports/daily",
         [HTTP_METHOD, "POST",
-         HTTP_MIMETYPE, "application/json",
+         HTTP_CUSTOM_HEADER, "Content-Type", "application/json",
          HTTP_CUSTOM_HEADER, "X-API-Key", API_KEY],
         json
     );
