@@ -54,6 +54,13 @@ integer subListListener;
 list cached_subscribers = [];
 string currentMenuAction = "";
 
+// Confirmation dialog state
+string pending_action = "";        // Action awaiting confirmation
+string pending_action_data = "";   // Associated data
+key pending_action_user = NULL_KEY;
+integer confirmation_listener = 0;
+integer confirmation_channel = 0;
+
 // State
 key current_http_request;
 
@@ -97,6 +104,63 @@ showUserMenu(key user, string userName)
         userMenuChannel);
     
     llSetTimerEvent(60.0); // Auto-close menu after 60 seconds
+}
+
+showConfirmationDialog(key user, string action, string description, string data)
+{
+    // Clean up any existing confirmation listener
+    if (confirmation_listener != 0)
+    {
+        llListenRemove(confirmation_listener);
+    }
+    
+    pending_action = action;
+    pending_action_data = data;
+    pending_action_user = user;
+    confirmation_channel = -1000 - (integer)llFrand(99999);
+    confirmation_listener = llListen(confirmation_channel, "", user, "");
+    
+    llDialog(user, 
+        "⚠️ " + description + "\n\nAre you sure?",
+        ["✓ Yes", "✗ Cancel"],
+        confirmation_channel);
+    
+    llSetTimerEvent(30.0); // Auto-cancel after 30s
+}
+
+executeConfirmedAction(string action, string data)
+{
+    key user = pending_action_user;
+    
+    if (action == "TRAINING_MODE")
+    {
+        // Start training wizard
+        llRegionSayTo(user, 0, "Starting training mode...");
+        llMessageLinked(LINK_SET, LINK_TRAINING_START, data, user);
+    }
+    else if (action == "NEW_API_KEY")
+    {
+        // Remove old textbox listener if exists
+        if (adminTextboxListener != 0)
+        {
+            llListenRemove(adminTextboxListener);
+        }
+        
+        // Prompt for subscriber name with unique channel
+        adminTextboxChannel = (integer)("0x" + llGetSubString((string)llGenerateKey(), 0, 7));
+        adminTextboxListener = llListen(adminTextboxChannel, "", user, "");
+        llTextBox(user, "Enter subscriber name:", adminTextboxChannel);
+        llSetTimerEvent(60.0); // Reset timer for textbox
+    }
+    else if (action == "LIST_SUBS")
+    {
+        sendSystemRequest("/system/subscribers", "GET", "");
+    }
+    else if (action == "CONFIG_RELOAD")
+    {
+        llOwnerSay("🔄 Configuration updated, reloading...");
+        llResetScript();
+    }
 }
 
 integer isAdmin(key user)
@@ -624,12 +688,49 @@ default
             llListenRemove(subListListener);
             subListListener = 0;
         }
+        
+        // Clean up confirmation listener and state
+        if (confirmation_listener != 0)
+        {
+            llListenRemove(confirmation_listener);
+            confirmation_listener = 0;
+            
+            // Notify user if there was a pending action
+            if (pending_action_user != NULL_KEY && pending_action != "")
+            {
+                llRegionSayTo(pending_action_user, 0, "⏱️ Confirmation timed out.");
+            }
+            
+            pending_action = "";
+            pending_action_data = "";
+            pending_action_user = NULL_KEY;
+        }
+        
         llSetTimerEvent(0.0);
     }
     
     listen(integer channel, string name, key id, string message)
     {
-        if (channel == adminMenuChannel)
+        if (channel == confirmation_channel)
+        {
+            llListenRemove(confirmation_listener);
+            confirmation_listener = 0;
+            llSetTimerEvent(0.0);
+            
+            if (message == "✓ Yes")
+            {
+                executeConfirmedAction(pending_action, pending_action_data);
+            }
+            else
+            {
+                llRegionSayTo(id, 0, "Action cancelled.");
+            }
+            
+            pending_action = "";
+            pending_action_data = "";
+            pending_action_user = NULL_KEY;
+        }
+        else if (channel == adminMenuChannel)
         {
             if (message == "New API Key")
             {
@@ -639,17 +740,7 @@ default
                     return;
                 }
                 
-                // Remove old textbox listener if exists
-                if (adminTextboxListener != 0)
-                {
-                    llListenRemove(adminTextboxListener);
-                }
-                
-                // Prompt for subscriber name with unique channel
-                adminTextboxChannel = (integer)("0x" + llGetSubString((string)llGenerateKey(), 0, 7));
-                adminTextboxListener = llListen(adminTextboxChannel, "", id, "");
-                llTextBox(id, "Enter subscriber name:", adminTextboxChannel);
-                llSetTimerEvent(60.0); // Reset timer for textbox
+                showConfirmationDialog(id, "NEW_API_KEY", "Generate a new subscriber API key?", "");
             }
             else if (message == "List Subs")
             {
@@ -658,7 +749,7 @@ default
                     llRegionSayTo(id, 0, "❌ Error: SUBSCRIBER_KEY not configured");
                     return;
                 }
-                sendSystemRequest("/system/subscribers", "GET", "");
+                showConfirmationDialog(id, "LIST_SUBS", "Retrieve subscriber list from system API?", "");
             }
             else if (message == "Manage Tiers")
             {
@@ -728,17 +819,14 @@ default
                     return;
                 }
                 
-                // Start training wizard
-                llRegionSayTo(id, 0, "Starting training mode...");
-                llMessageLinked(LINK_SET, LINK_TRAINING_START, name, id);
+                showConfirmationDialog(id, "TRAINING_MODE", "This will pause navigation and enter training mode.", name);
                 
-                // Clean up listener
+                // Clean up user menu listener
                 if (userMenuListener != 0)
                 {
                     llListenRemove(userMenuListener);
                     userMenuListener = 0;
                 }
-                llSetTimerEvent(0.0);
             }
             else if (message == "Cancel")
             {
@@ -860,8 +948,8 @@ default
         {
             if (llGetInventoryType("RoseConfig") == INVENTORY_NOTECARD)
             {
-                llOwnerSay("🔄 Configuration updated, reloading...");
-                llResetScript();
+                // Show confirmation dialog to owner
+                showConfirmationDialog(llGetOwner(), "CONFIG_RELOAD", "Configuration changed. Reset all scripts?", "");
             }
         }
     }
