@@ -48,6 +48,12 @@ integer adminTextboxListener;
 integer userMenuChannel;
 integer userMenuListener;
 
+// Subscriber management state
+integer subListChannel;
+integer subListListener;
+list cached_subscribers = [];
+string currentMenuAction = "";
+
 // State
 key current_http_request;
 
@@ -68,7 +74,7 @@ showAdminMenu(key user)
     
     llDialog(user,
         "🔧 Rose Admin Menu\n\nManage API keys and view system status.",
-        ["New API Key", "List Subs", "Status", "Logs", "Close"],
+        ["New API Key", "List Subs", "Manage Tiers", "Status", "Logs", "Close"],
         adminMenuChannel);
     
     llSetTimerEvent(60.0); // Auto-close menu after 60 seconds
@@ -222,6 +228,130 @@ sendChatRequest(string avatarKey, string avatarName, string message, string sess
     http_requests += [http_request_id, "chat", avatarKey];
 }
 
+list parseSubscriberList(string json)
+{
+    // Very simple parser to extract subscriber names and IDs
+    // Format: [{"id":"...","subscriberName":"...","exemptFromRateLimits":true/false}...]
+    list subscribers = [];
+    
+    integer pos = 0;
+    while (TRUE)
+    {
+        integer idStart = llSubStringIndex(llGetSubString(json, pos, -1), "\"id\":\"");
+        if (idStart == -1) jump done;
+        idStart += pos + 6;
+        
+        integer idEnd = llSubStringIndex(llGetSubString(json, idStart, -1), "\"");
+        string id = llGetSubString(json, idStart, idStart + idEnd - 1);
+        
+        integer nameStart = llSubStringIndex(llGetSubString(json, idStart, -1), "\"subscriberName\":\"");
+        if (nameStart == -1) jump done;
+        nameStart += idStart + 18;
+        
+        integer nameEnd = llSubStringIndex(llGetSubString(json, nameStart, -1), "\"");
+        string name = llGetSubString(json, nameStart, nameStart + nameEnd - 1);
+        
+        // Check for exemption status
+        integer exemptStart = llSubStringIndex(llGetSubString(json, nameStart, -1), "\"exemptFromRateLimits\":");
+        integer isExempt = FALSE;
+        if (exemptStart != -1)
+        {
+            exemptStart += nameStart + 23;
+            string exemptStr = llGetSubString(json, exemptStart, exemptStart + 4);
+            if (exemptStr == "true")
+            {
+                isExempt = TRUE;
+            }
+        }
+        
+        subscribers += [id, name, isExempt];
+        pos = nameStart + nameEnd + 1;
+    }
+    @done;
+    
+    return subscribers;
+}
+
+showSubscriberListMenu(key user)
+{
+    if (llGetListLength(cached_subscribers) == 0)
+    {
+        llRegionSayTo(user, 0, "No subscribers found");
+        return;
+    }
+    
+    // Remove old listener if exists
+    if (subListListener != 0)
+    {
+        llListenRemove(subListListener);
+    }
+    
+    subListChannel = -2000 - (integer)llFrand(9999);
+    subListListener = llListen(subListChannel, "", user, "");
+    
+    // Build button list (max 12 buttons)
+    list buttons = [];
+    integer i;
+    integer count = llGetListLength(cached_subscribers) / 3;
+    if (count > 11) count = 11; // Leave room for "Close"
+    
+    for (i = 0; i < count; i++)
+    {
+        string name = llList2String(cached_subscribers, i * 3 + 1);
+        integer isExempt = llList2Integer(cached_subscribers, i * 3 + 2);
+        
+        // Truncate name if needed and add exemption indicator
+        if (llStringLength(name) > 20)
+        {
+            name = llGetSubString(name, 0, 19);
+        }
+        
+        if (isExempt)
+        {
+            buttons += ["✓ " + name];
+        }
+        else
+        {
+            buttons += [name];
+        }
+    }
+    
+    buttons += ["Close"];
+    
+    string message = "Select subscriber to toggle rate limit exemption:\n✓ = Currently exempt";
+    
+    llDialog(user, message, buttons, subListChannel);
+    llSetTimerEvent(60.0);
+}
+
+toggleExemption(string subscriberName)
+{
+    // Find subscriber in cached list
+    integer i;
+    for (i = 0; i < llGetListLength(cached_subscribers); i += 3)
+    {
+        string name = llList2String(cached_subscribers, i + 1);
+        if (name == subscriberName)
+        {
+            string id = llList2String(cached_subscribers, i);
+            integer currentExempt = llList2Integer(cached_subscribers, i + 2);
+            integer newExempt = !currentExempt;
+            
+            // Send update request
+            string json = "{\"exemptFromRateLimits\":" + (string)newExempt + "}";
+            sendSystemRequest("/system/subscribers/" + id + "/exemption", "PUT", json);
+            
+            // Update cache
+            cached_subscribers = llListReplaceList(cached_subscribers, [newExempt], i + 2, i + 2);
+            
+            llOwnerSay("Toggling exemption for " + subscriberName + " to " + (string)newExempt);
+            return;
+        }
+    }
+    
+    llOwnerSay("Subscriber not found: " + subscriberName);
+}
+
 handleSuccessResponse(string request_type, string request_data, string body)
 {
     if (request_type == "key_check")
@@ -236,6 +366,25 @@ handleSuccessResponse(string request_type, string request_data, string body)
     {
         // System API response
         llOwnerSay("📋 System API Response:");
+        llOwnerSay(body);
+        
+        // If this was a list subscribers request, cache the results
+        if (llSubStringIndex(request_data, "/system/subscribers") != -1)
+        {
+            cached_subscribers = parseSubscriberList(body);
+            if (currentMenuAction == "manage_tiers")
+            {
+                // Show subscriber list menu to the last admin user
+                // Note: In a multi-admin scenario, you'd need to track the requesting user
+                key admin = llGetOwner(); // Fallback to owner
+                showSubscriberListMenu(admin);
+            }
+        }
+    }
+    else if (request_type == "system_PUT")
+    {
+        // Update response
+        llOwnerSay("✅ Update successful:");
         llOwnerSay(body);
     }
     else if (request_type == "arrival")
@@ -468,6 +617,11 @@ default
             llListenRemove(userMenuListener);
             userMenuListener = 0;
         }
+        if (subListListener != 0)
+        {
+            llListenRemove(subListListener);
+            subListListener = 0;
+        }
         llSetTimerEvent(0.0);
     }
     
@@ -502,6 +656,16 @@ default
                     llRegionSayTo(id, 0, "❌ Error: SUBSCRIBER_KEY not configured");
                     return;
                 }
+                sendSystemRequest("/system/subscribers", "GET", "");
+            }
+            else if (message == "Manage Tiers")
+            {
+                if (SUBSCRIBER_KEY == "")
+                {
+                    llRegionSayTo(id, 0, "❌ Error: SUBSCRIBER_KEY not configured");
+                    return;
+                }
+                currentMenuAction = "manage_tiers";
                 sendSystemRequest("/system/subscribers", "GET", "");
             }
             else if (message == "Status")
@@ -584,6 +748,32 @@ default
                 }
                 llSetTimerEvent(0.0);
             }
+        }
+        else if (channel == subListChannel)
+        {
+            if (message == "Close")
+            {
+                if (subListListener != 0)
+                {
+                    llListenRemove(subListListener);
+                    subListListener = 0;
+                }
+                llSetTimerEvent(0.0);
+                return;
+            }
+            
+            // Remove ✓ prefix if present
+            string subscriberName = message;
+            if (llGetSubString(message, 0, 1) == "✓ ")
+            {
+                subscriberName = llGetSubString(message, 2, -1);
+            }
+            
+            toggleExemption(subscriberName);
+            
+            // Refresh the menu after a brief delay
+            llSleep(1.0);
+            showSubscriberListMenu(id);
         }
         else if (channel == adminTextboxChannel && adminTextboxListener != 0)
         {
