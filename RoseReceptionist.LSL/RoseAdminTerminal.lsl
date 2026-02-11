@@ -220,7 +220,7 @@ showSubscriberListMenu(key user)
 {
     if (llGetListLength(cached_subscribers) == 0)
     {
-        llOwnerSay("No subscribers found");
+        llRegionSayTo(user, 0, "No subscribers found");
         return;
     }
     

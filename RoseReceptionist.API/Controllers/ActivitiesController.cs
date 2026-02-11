@@ -27,6 +27,8 @@ public class ActivitiesController : ControllerBase
             return BadRequest(new { error = "Activities list is required" });
         }
 
+        const int FUTURE_TIMESTAMP_TOLERANCE_SECONDS = 3600; // Allow 1 hour clock skew/network delay
+
         try
         {
             var activityLogs = new List<ActivityLog>();
@@ -39,8 +41,9 @@ public class ActivitiesController : ControllerBase
                     continue;
                 }
 
-                // Validate timestamp (should be within reasonable range)
-                if (activity.Timestamp <= 0 || activity.Timestamp > DateTimeOffset.UtcNow.ToUnixTimeSeconds() + 3600)
+                // Validate timestamp (should be within reasonable range to prevent invalid data)
+                if (activity.Timestamp <= 0 || 
+                    activity.Timestamp > DateTimeOffset.UtcNow.ToUnixTimeSeconds() + FUTURE_TIMESTAMP_TOLERANCE_SECONDS)
                 {
                     _logger.LogWarning("Skipping activity with invalid timestamp: {Name}, Timestamp: {Timestamp}", 
                         activity.Name, activity.Timestamp);

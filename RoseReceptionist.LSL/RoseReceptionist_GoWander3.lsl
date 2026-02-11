@@ -324,7 +324,7 @@ sendActivityBatch()
     llOwnerSay("📊 Sent activity batch: " + (string)(llGetListLength(pending_activities) / 4) + " activities");
     
     pending_activities = [];
-    tracked_activities = []; // Clear tracked activities after batch send
+    tracked_activities = []; // Clear to prevent unbounded memory growth - activities are unique per batch
     last_batch_time = llGetUnixTime();
 }
 
