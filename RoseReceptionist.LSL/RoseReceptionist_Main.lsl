@@ -642,7 +642,7 @@ default
         integer idx = llListFindList(http_requests, [http_request_id]);
         if (idx == -1)
         {
-            llOwnerSay("Received response for unknown request");
+            // Silently ignore - likely from another script in linkset
             return;
         }
         
