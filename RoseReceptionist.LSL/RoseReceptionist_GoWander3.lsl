@@ -16,10 +16,6 @@ string WAYPOINT_PREFIX = "Waypoint";
 integer LINK_WANDERING_STATE = 2000;
 integer LINK_ACTIVITY_UPDATE = 2001;
 
-// Waypoint scanning
-float SENSOR_RANGE = 50.0;
-float SENSOR_REPEAT = 5.0;
-
 // Navigation
 float CHARACTER_SPEED = 0.5;
 integer NAVIGATION_TIMEOUT = 60; // seconds
@@ -50,7 +46,6 @@ string current_section = "";
 // STATE VARIABLES
 // ============================================================================
 
-list waypoints = []; // List of [prim_key, number, name, position]
 integer current_waypoint_index = -1;
 string current_state = "IDLE";
 string current_activity_name = "idle";
@@ -76,6 +71,15 @@ integer activity_start_time = 0;
 // HTTP error tracking (to prevent spam)
 integer last_429_time = 0;
 integer error_429_count = 0;
+
+// Activity batching
+list pending_activities = []; // [name, type, duration, timestamp, ...]
+integer BATCH_SIZE = 5;
+float BATCH_INTERVAL = 300.0; // 5 minutes
+integer last_batch_time = 0;
+
+// Track unique activities only
+list tracked_activities = []; // [activity_name, ...]
 
 // ============================================================================
 // UTILITY FUNCTIONS
@@ -268,6 +272,61 @@ list sortWaypointsByNumber(list wp)
     return wp;
 }
 
+integer isNewActivity(string activity_name)
+{
+    return llListFindList(tracked_activities, [activity_name]) == -1;
+}
+
+queueActivity(string name, string type, integer duration)
+{
+    // Only track if new unique activity
+    if (!isNewActivity(name))
+    {
+        return;
+    }
+    
+    tracked_activities += [name];
+    pending_activities += [name, type, duration, llGetUnixTime()];
+    
+    // Batch send if enough queued or time elapsed
+    if (llGetListLength(pending_activities) / 4 >= BATCH_SIZE || 
+        llGetUnixTime() - last_batch_time > BATCH_INTERVAL)
+    {
+        sendActivityBatch();
+    }
+}
+
+sendActivityBatch()
+{
+    if (llGetListLength(pending_activities) == 0) return;
+    
+    // Build JSON array
+    string json = "[";
+    integer i;
+    for (i = 0; i < llGetListLength(pending_activities); i += 4)
+    {
+        if (i > 0) json += ",";
+        json += "{\"name\":\"" + llList2String(pending_activities, i) + "\",";
+        json += "\"type\":\"" + llList2String(pending_activities, i + 1) + "\",";
+        json += "\"duration\":" + (string)llList2Integer(pending_activities, i + 2) + ",";
+        json += "\"timestamp\":" + (string)llList2Integer(pending_activities, i + 3) + "}";
+    }
+    json += "]";
+    
+    // Send batch
+    key http_request_id = llHTTPRequest(API_ENDPOINT + "/activities/batch",
+        [HTTP_METHOD, "POST",
+         HTTP_MIMETYPE, "application/json",
+         HTTP_CUSTOM_HEADER, "X-API-Key", API_KEY,
+         HTTP_BODY_MAXLENGTH, 16384],
+        json);
+    
+    llOwnerSay("📊 Sent activity batch: " + (string)(llGetListLength(pending_activities) / 4) + " activities");
+    
+    pending_activities = [];
+    last_batch_time = llGetUnixTime();
+}
+
 // HTTP request to log activity
 logActivity(string activityName, string activityType, string location, integer orientation, string animation, string attachments)
 {
@@ -406,17 +465,19 @@ createPathfindingCharacter()
     llOwnerSay("✅ Pathfinding character created");
 }
 
-startWaypointScan()
-{
-    llOwnerSay("Scanning for waypoints...");
-    llSensor("", NULL_KEY, PASSIVE | ACTIVE, SENSOR_RANGE, PI);
-}
-
 initializeNavigation()
 {
-    createPathfindingCharacter();
-    llOwnerSay("Scanning for " + WAYPOINT_PREFIX + "[0-9]+ prims...");
-    startWaypointScan();
+    llOwnerSay("Navigation initialized with waypoint configurations from notecard");
+    // Start wandering if waypoint configs are loaded
+    if (llGetListLength(waypoint_configs) > 0)
+    {
+        current_waypoint_index = -1;
+        moveToNextWaypoint();
+    }
+    else
+    {
+        llOwnerSay("❌ No waypoint configurations found. Please add [WPP]WaypointConfig notecard.");
+    }
 }
 
 processWaypoint(key wpKey, vector wpPos)
@@ -469,8 +530,8 @@ processWaypoint(key wpKey, vector wpPos)
     activity_animation = llList2String(wpData, 4);
     string attachments_json = llList2String(wpData, 5);
     
-    // Log activity start
-    logActivity(current_activity_name, activity_type, wpName, activity_orientation, activity_animation, attachments_json);
+    // Queue activity for batch logging
+    queueActivity(current_activity_name, activity_type, activity_duration);
     activity_start_time = llGetUnixTime();
     
     // Handle different action types
@@ -542,13 +603,9 @@ moveToNextWaypoint()
     integer num_waypoints = llGetListLength(waypoint_configs) / 3;
     if (num_waypoints == 0)
     {
-        // No configs, fall back to scanning waypoints from prims
-        num_waypoints = llGetListLength(waypoints) / 4;
-        if (num_waypoints == 0)
-        {
-            llSetTimerEvent(30.0);
-            return;
-        }
+        llOwnerSay("❌ No waypoint configurations available");
+        llSetTimerEvent(30.0);
+        return;
     }
     
     current_waypoint_index++;
@@ -557,40 +614,10 @@ moveToNextWaypoint()
         current_waypoint_index = 0;
     }
     
-    integer wpNumber;
-    
-    // Use waypoint configs if available (new format with positions)
-    if (llGetListLength(waypoint_configs) > 0)
-    {
-        wpNumber = llList2Integer(waypoint_configs, current_waypoint_index * 3);
-        current_target_pos = llList2Vector(waypoint_configs, current_waypoint_index * 3 + 1);
-        
-        // Find matching waypoint prim for key (if scanned)
-        integer i;
-        integer found = FALSE;
-        for (i = 0; i < llGetListLength(waypoints); i += 4)
-        {
-            if (llList2Integer(waypoints, i + 1) == wpNumber)
-            {
-                current_target_key = llList2Key(waypoints, i);
-                found = TRUE;
-                jump done;
-            }
-        }
-        @done;
-        
-        if (!found)
-        {
-            current_target_key = NULL_KEY;
-        }
-    }
-    else
-    {
-        // Legacy mode: use waypoint prims only
-        current_target_key = llList2Key(waypoints, current_waypoint_index * 4);
-        wpNumber = llList2Integer(waypoints, current_waypoint_index * 4 + 1);
-        current_target_pos = llList2Vector(waypoints, current_waypoint_index * 4 + 3);
-    }
+    // Use waypoint configs from notecard
+    integer wpNumber = llList2Integer(waypoint_configs, current_waypoint_index * 3);
+    current_target_pos = llList2Vector(waypoint_configs, current_waypoint_index * 3 + 1);
+    current_target_key = NULL_KEY; // No prim keys, using positions only
     
     llNavigateTo(current_target_pos, [FORCE_DIRECT_PATH, TRUE]);
     is_navigating = TRUE;
@@ -760,60 +787,6 @@ default
         }
     }
     
-    sensor(integer num_detected)
-    {
-        waypoints = [];
-        integer i;
-        for (i = 0; i < num_detected; i++)
-        {
-            string primName = llDetectedName(i);
-            string primNameLower = llToLower(primName);
-            string prefixLower = llToLower(WAYPOINT_PREFIX);
-            
-            // Case-insensitive prefix check
-            if (llSubStringIndex(primNameLower, prefixLower) == 0)
-            {
-                // Extract remainder after prefix
-                string remainder = llGetSubString(primName, llStringLength(WAYPOINT_PREFIX), -1);
-                
-                // Trim spaces: "Waypoint 1" -> "1"
-                remainder = llStringTrim(remainder, STRING_TRIM_HEAD);
-                
-                // Parse number
-                integer wpNumber = (integer)remainder;
-                
-                // Validate (handles "0" case)
-                if (wpNumber > 0 || remainder == "0")
-                {
-                    key wpKey = llDetectedKey(i);
-                    vector wpPos = llDetectedPos(i);
-                    
-                    waypoints += [wpKey, wpNumber, primName, wpPos];
-                }
-            }
-        }
-        
-        waypoints = sortWaypointsByNumber(waypoints);
-        
-        // Start navigation to first waypoint
-        if (llGetListLength(waypoints) > 0)
-        {
-            current_waypoint_index = -1;
-            moveToNextWaypoint();
-        }
-        else
-        {
-            llOwnerSay("No " + WAYPOINT_PREFIX + " waypoints found. Will retry in 30 seconds.");
-            llSetTimerEvent(30.0);
-        }
-    }
-    
-    no_sensor()
-    {
-        llOwnerSay("No objects detected in range. Will retry in 30 seconds.");
-        llSetTimerEvent(30.0);
-    }
-    
     timer()
     {
         if (current_state == "WALKING")
@@ -847,11 +820,6 @@ default
             }
             
             moveToNextWaypoint();
-        }
-        else if (current_state == "IDLE")
-        {
-            // Rescan for waypoints
-            startWaypointScan();
         }
         
         // Check if it's time for daily report (only once per day)
