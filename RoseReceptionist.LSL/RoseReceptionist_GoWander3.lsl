@@ -81,6 +81,13 @@ integer last_batch_time = 0;
 // Track unique activities only
 list tracked_activities = []; // [activity_name, ...]
 
+// Confirmation dialog state
+string pending_action = "";        // Action awaiting confirmation
+string pending_action_data = "";   // Associated data
+key pending_action_user = NULL_KEY;
+integer confirmation_listener = 0;
+integer confirmation_channel = 0;
+
 // ============================================================================
 // UTILITY FUNCTIONS
 // ============================================================================
@@ -223,6 +230,62 @@ list parseWaypointJSON(string json)
     }
     
     return result;
+}
+
+showConfirmationDialog(key user, string action, string description, string data)
+{
+    // Clean up any existing confirmation listener
+    if (confirmation_listener != 0)
+    {
+        llListenRemove(confirmation_listener);
+    }
+    
+    pending_action = action;
+    pending_action_data = data;
+    pending_action_user = user;
+    confirmation_channel = -1000 - (integer)llFrand(99999);
+    confirmation_listener = llListen(confirmation_channel, "", user, "");
+    
+    llDialog(user, 
+        "⚠️ " + description + "\n\nAre you sure?",
+        ["✓ Yes", "✗ Cancel"],
+        confirmation_channel);
+    
+    llSetTimerEvent(30.0); // Auto-cancel after 30s
+}
+
+executeConfirmedAction(string action, string data)
+{
+    if (action == "TOGGLE_WANDER")
+    {
+        wander_enabled = !wander_enabled;
+        
+        string status;
+        if (wander_enabled)
+        {
+            status = "enabled";
+        }
+        else
+        {
+            status = "disabled";
+        }
+        llOwnerSay("Wandering " + status);
+        
+        if (!wander_enabled)
+        {
+            if (is_navigating)
+            {
+                llNavigateTo(llGetPos(), []);
+                is_navigating = FALSE;
+            }
+            llSetTimerEvent(0.0);
+            current_state = "IDLE";
+        }
+        else
+        {
+            startWaypointScan();
+        }
+    }
 }
 
 // Extract number from waypoint name (e.g., <prefix>0, <prefix>1, etc.)
@@ -793,6 +856,33 @@ default
     
     timer()
     {
+        // Handle confirmation timeout first
+        if (confirmation_listener != 0)
+        {
+            llListenRemove(confirmation_listener);
+            confirmation_listener = 0;
+            
+            if (pending_action_user != NULL_KEY && pending_action != "")
+            {
+                llRegionSayTo(pending_action_user, 0, "⏱️ Confirmation timed out.");
+            }
+            
+            pending_action = "";
+            pending_action_data = "";
+            pending_action_user = NULL_KEY;
+            
+            // Resume timer if we were in an active state
+            if (current_state != "IDLE" && current_state != "INTERACTING")
+            {
+                llSetTimerEvent(5.0);
+            }
+            else
+            {
+                llSetTimerEvent(0.0);
+            }
+            return;
+        }
+        
         if (current_state == "WALKING")
         {
             // Check for navigation timeout
@@ -880,33 +970,17 @@ default
         }
         else if (msg == "TOGGLE_WANDER")
         {
-            wander_enabled = !wander_enabled;
-            
-            string status;
+            string action_desc;
             if (wander_enabled)
             {
-                status = "enabled";
+                action_desc = "Disable autonomous wandering?";
             }
             else
             {
-                status = "disabled";
+                action_desc = "Enable autonomous wandering?";
             }
-            llOwnerSay("Wandering " + status);
             
-            if (!wander_enabled)
-            {
-                if (is_navigating)
-                {
-                    llNavigateTo(llGetPos(), []);
-                    is_navigating = FALSE;
-                }
-                llSetTimerEvent(0.0);
-                current_state = "IDLE";
-            }
-            else
-            {
-                startWaypointScan();
-            }
+            showConfirmationDialog(llGetOwner(), "TOGGLE_WANDER", action_desc, "");
         }
         else if (llSubStringIndex(msg, "WHAT_DOING") == 0)
         {
@@ -916,6 +990,35 @@ default
                 response += " at " + llList2String(waypoints, current_waypoint_index * 4 + 2);
             
             llMessageLinked(LINK_SET, LINK_ACTIVITY_UPDATE, response, NULL_KEY);
+        }
+    }
+    
+    listen(integer channel, string name, key id, string message)
+    {
+        if (channel == confirmation_channel)
+        {
+            llListenRemove(confirmation_listener);
+            confirmation_listener = 0;
+            llSetTimerEvent(0.0);
+            
+            if (message == "✓ Yes")
+            {
+                executeConfirmedAction(pending_action, pending_action_data);
+            }
+            else
+            {
+                llRegionSayTo(id, 0, "Action cancelled.");
+            }
+            
+            pending_action = "";
+            pending_action_data = "";
+            pending_action_user = NULL_KEY;
+            
+            // Resume timer if we were in an active state
+            if (current_state != "IDLE" && current_state != "INTERACTING")
+            {
+                llSetTimerEvent(5.0);
+            }
         }
     }
     

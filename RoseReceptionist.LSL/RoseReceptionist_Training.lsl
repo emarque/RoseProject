@@ -47,6 +47,13 @@ integer dialog_listener = 0;
 integer textbox_channel = 0;
 integer textbox_listener = 0;
 
+// Confirmation dialog state
+string pending_action = "";        // Action awaiting confirmation
+string pending_action_data = "";   // Associated data
+key pending_action_user = NULL_KEY;
+integer confirmation_listener = 0;
+integer confirmation_channel = 0;
+
 // Notecard reading for config
 key notecardQuery;
 integer notecardLine = 0;
@@ -85,6 +92,46 @@ clearListeners()
     {
         llListenRemove(textbox_listener);
         textbox_listener = 0;
+    }
+    if (confirmation_listener != 0)
+    {
+        llListenRemove(confirmation_listener);
+        confirmation_listener = 0;
+    }
+}
+
+showConfirmationDialog(key user, string action, string description, string data)
+{
+    // Clean up any existing confirmation listener
+    if (confirmation_listener != 0)
+    {
+        llListenRemove(confirmation_listener);
+    }
+    
+    pending_action = action;
+    pending_action_data = data;
+    pending_action_user = user;
+    confirmation_channel = -1000 - (integer)llFrand(99999);
+    confirmation_listener = llListen(confirmation_channel, "", user, "");
+    
+    llDialog(user, 
+        "⚠️ " + description + "\n\nAre you sure?",
+        ["✓ Yes", "✗ Cancel"],
+        confirmation_channel);
+    
+    llSetTimerEvent(30.0); // Auto-cancel after 30s
+}
+
+executeConfirmedAction(string action, string data)
+{
+    if (action == "DONE_TRAINING")
+    {
+        completeTraining();
+    }
+    else if (action == "REPLACE_ALL")
+    {
+        // Continue with new training, effectively replacing all waypoints
+        startTraining(pending_action_user, data);
     }
 }
 
@@ -461,7 +508,33 @@ default
     {
         if (id != training_user) return;
         
-        if (channel == dialog_channel)
+        if (channel == confirmation_channel)
+        {
+            llListenRemove(confirmation_listener);
+            confirmation_listener = 0;
+            llSetTimerEvent(0.0);
+            
+            if (message == "✓ Yes")
+            {
+                executeConfirmedAction(pending_action, pending_action_data);
+            }
+            else
+            {
+                llRegionSayTo(id, 0, "Action cancelled.");
+                
+                // If we were in the middle of training, restore the state
+                if (pending_action == "DONE_TRAINING")
+                {
+                    training_state = "ACTIVE";
+                    llSetTimerEvent(300.0);
+                }
+            }
+            
+            pending_action = "";
+            pending_action_data = "";
+            pending_action_user = NULL_KEY;
+        }
+        else if (channel == dialog_channel)
         {
             if (training_state == "TYPE")
             {
@@ -482,7 +555,7 @@ default
                 }
                 else if (message == "Done Training")
                 {
-                    completeTraining();
+                    showConfirmationDialog(training_user, "DONE_TRAINING", "Finalize training? This will output waypoint configuration.", "");
                 }
             }
             else if (training_state == "DURATION")
@@ -661,13 +734,42 @@ default
             }
             else
             {
-                llRegionSayTo(id, 0, "⚠️ Training mode is already active.");
+                // Training is already active - ask if they want to replace all waypoints
+                showConfirmationDialog(id, "REPLACE_ALL", "Delete all existing waypoints and start from scratch?", msg);
             }
         }
     }
     
     timer()
     {
+        // Handle confirmation timeout first
+        if (confirmation_listener != 0)
+        {
+            llListenRemove(confirmation_listener);
+            confirmation_listener = 0;
+            
+            if (pending_action_user != NULL_KEY && pending_action != "")
+            {
+                llRegionSayTo(pending_action_user, 0, "⏱️ Confirmation timed out.");
+            }
+            
+            // If we were in the middle of training, restore the state
+            if (pending_action == "DONE_TRAINING" && training_state != "IDLE")
+            {
+                training_state = "ACTIVE";
+                llSetTimerEvent(300.0);
+            }
+            else
+            {
+                llSetTimerEvent(0.0);
+            }
+            
+            pending_action = "";
+            pending_action_data = "";
+            pending_action_user = NULL_KEY;
+            return;
+        }
+        
         // Menu/training timeout
         if (training_state != "IDLE" && training_state != "COMPLETE")
         {
