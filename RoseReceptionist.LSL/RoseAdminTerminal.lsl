@@ -285,7 +285,12 @@ toggleExemption(string subscriberName, key requestingUser)
             integer newExempt = !currentExempt;
             
             // Send update request
-            string json = "{\"exemptFromRateLimits\":" + (string)newExempt + "}";
+            string boolStr = "false";
+            if (newExempt)
+            {
+                boolStr = "true";
+            }
+            string json = "{\"exemptFromRateLimits\":" + boolStr + "}";
             sendSystemRequest("/system/subscribers/" + id + "/exemption", "PUT", json, requestingUser);
             
             // Update cache
