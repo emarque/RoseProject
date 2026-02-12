@@ -216,12 +216,10 @@ sendSystemRequest(string endpoint, string method, string json)
                    HTTP_CUSTOM_HEADER, "X-API-Key", (string)SUBSCRIBER_KEY,
                    HTTP_BODY_MAXLENGTH, 16384];
     
-    // Always set X-Content-Type for PUT/POST requests (Second Life compatibility)
-    // Second Life forces Content-Type to "text/plain; charset=utf-8", so we use X-Content-Type
-    // which the backend server will recognize and treat as JSON
+    // Always set Content-Type for PUT/POST requests
     if (method == "PUT" || method == "POST")
     {
-        params += [HTTP_CUSTOM_HEADER, "X-Content-Type", "application/json"];
+        params += [HTTP_MIMETYPE, "application/json"];
     }
     
     key http_request_id = llHTTPRequest(url, params, json);
@@ -251,7 +249,7 @@ sendArrivalRequest(string avatarKey, string avatarName, string location)
     
     key http_request_id = llHTTPRequest(url,
         [HTTP_METHOD, "POST",
-         HTTP_CUSTOM_HEADER, "X-Content-Type", "application/json",
+         HTTP_MIMETYPE, "application/json",
          HTTP_CUSTOM_HEADER, "X-API-Key", (string)SUBSCRIBER_KEY,
          HTTP_BODY_MAXLENGTH, 16384],
         json);
@@ -287,7 +285,7 @@ sendChatRequest(string avatarKey, string avatarName, string message, string sess
     
     key http_request_id = llHTTPRequest(url,
         [HTTP_METHOD, "POST",
-         HTTP_CUSTOM_HEADER, "X-Content-Type", "application/json",
+         HTTP_MIMETYPE, "application/json",
          HTTP_CUSTOM_HEADER, "X-API-Key", (string)SUBSCRIBER_KEY,
          HTTP_BODY_MAXLENGTH, 16384],
         json);
