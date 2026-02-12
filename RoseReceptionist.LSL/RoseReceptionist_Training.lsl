@@ -43,7 +43,7 @@ list available_linger_animations = [];  // "anim [tag]" for linger tasks (exclud
 
 // Attachables from RoseConfig
 list available_attachables = [];
-string current_section = "";
+integer in_attachables_section = FALSE;  // Flag for reading attachables section
 
 // Dialog channels and listeners
 integer dialog_channel = 0;
@@ -478,14 +478,16 @@ default
     {
         llOwnerSay("Rose Tap-to-Train Wizard ready");
         
-        // Scan inventory for animations using naming convention
-        scanInventoryAnimations();
-        
         // Read configuration from RoseConfig if available
         if (llGetInventoryType("RoseConfig") == INVENTORY_NOTECARD)
         {
             notecardLine = 0;
             notecardQuery = llGetNotecardLine("RoseConfig", notecardLine);
+        }
+        else
+        {
+            // No config file, scan animations now
+            scanInventoryAnimations();
         }
     }
     
@@ -500,23 +502,23 @@ default
                 // Check for section headers
                 if (data == "[AvailableAttachables]")
                 {
-                    current_section = "attachables";
+                    in_attachables_section = TRUE;
                 }
                 // Skip empty lines and comments
                 else if (data != "" && llGetSubString(data, 0, 0) != "#")
                 {
                     // If we're in attachables section, add to list
-                    if (current_section == "attachables" && llSubStringIndex(data, "=") == -1)
+                    if (in_attachables_section && llSubStringIndex(data, "=") == -1)
                     {
                         available_attachables += [data];
                     }
                     else
                     {
-                        // Parse KEY=VALUE (resets current_section)
+                        // Parse KEY=VALUE (resets section flag)
                         integer equals = llSubStringIndex(data, "=");
                         if (equals != -1)
                         {
-                            current_section = "";
+                            in_attachables_section = FALSE;
                             string configKey = llStringTrim(llGetSubString(data, 0, equals - 1), STRING_TRIM);
                             string value = llStringTrim(llGetSubString(data, equals + 1, -1), STRING_TRIM);
                             
