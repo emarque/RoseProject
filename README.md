@@ -576,6 +576,16 @@ The backend now includes these new endpoints:
 3. Make sure they match exactly
 4. Restart both the backend service and reset LSL scripts
 
+#### ⚠️ Content-Type Header Issue
+
+**Important:** Second Life does NOT allow setting the `Content-Type` header - it's automatically set to `text/plain; charset=utf-8`.
+
+**Solution:**
+- The LSL scripts in this repository use `X-Content-Type` header instead
+- The backend server automatically detects this header and treats the body as JSON
+- No action needed if using the provided scripts
+- If writing custom scripts, use: `HTTP_CUSTOM_HEADER, "X-Content-Type", "application/json"`
+
 #### Other Issues
 - **No response**: Verify API_ENDPOINT is configured correctly in the script
 - **No movement**: Enable pathfinding and check permissions
