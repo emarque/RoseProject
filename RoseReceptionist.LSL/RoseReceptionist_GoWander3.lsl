@@ -200,7 +200,7 @@ startWalkAnimation()
     // Check if animation exists in inventory
     if (llGetInventoryType(walk_anim) == INVENTORY_ANIMATION)
     {
-        llStartAnimation(walk_anim);
+        llStartObjectAnimation(walk_anim);
         current_walk_animation = walk_anim;
     }
     else
@@ -214,7 +214,7 @@ stopWalkAnimation()
 {
     if (current_walk_animation != "")
     {
-        llStopAnimation(current_walk_animation);
+        llStopObjectAnimation(current_walk_animation);
         current_walk_animation = "";
     }
 }
@@ -642,16 +642,18 @@ string getWaypointConfig(integer waypoint_number)
 
 createPathfindingCharacter()
 {
-    // Updated character parameters per redesign requirements
-    // Smaller dimensions (radius 0.125, length 0.25) for tighter navigation
+    // Updated character parameters for optimal pathfinding
+    // CHARACTER_MAX_TURN_RADIUS 0.2 for tighter turns
+    // CHARACTER_RADIUS 0.185, CHARACTER_LENGTH 0.373 per requirements
     // AVOID_NONE for direct path navigation without obstacle avoidance
     llCreateCharacter([
         CHARACTER_TYPE, CHARACTER_TYPE_A,
         CHARACTER_MAX_SPEED, 2.0,
         CHARACTER_DESIRED_SPEED, 1.5,
         CHARACTER_DESIRED_TURN_SPEED, 1.8,
-        CHARACTER_RADIUS, 0.125,
-        CHARACTER_LENGTH, 0.25,
+        CHARACTER_MAX_TURN_RADIUS, 0.2,
+        CHARACTER_RADIUS, 0.185,
+        CHARACTER_LENGTH, 0.373,
         CHARACTER_AVOIDANCE_MODE, AVOID_NONE
     ]);
     llOwnerSay("✅ Pathfinding character created");

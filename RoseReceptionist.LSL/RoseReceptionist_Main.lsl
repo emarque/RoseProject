@@ -674,15 +674,11 @@ default
         key toucher = llDetectedKey(0);
         string name = llDetectedName(0);
         
-        // If training mode is active, only respond to the training user
+        // If training mode is active, don't show menu to anyone
+        // (Training script will handle the training user's touches)
         if (training_mode_active)
         {
-            if (toucher != training_mode_user)
-            {
-                // Ignore touches from other users during training
-                return;
-            }
-            // Training user's touch - let Training script handle it
+            // Ignore all touches during training - Training script handles them
             return;
         }
         
