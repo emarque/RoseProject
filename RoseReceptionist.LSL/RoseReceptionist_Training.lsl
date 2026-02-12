@@ -38,8 +38,10 @@ list wp_attachments = [];
 list OWNER_UUIDS = [];
 string RECEPTIONIST_NAME = "Rose";
 
-// Available animations and attachables from RoseConfig
-list available_animations = [];
+// Animation lists discovered from inventory
+list available_linger_animations = [];  // "anim [tag]" for linger tasks (excluding special categories)
+
+// Attachables from RoseConfig
 list available_attachables = [];
 string current_section = "";
 
@@ -63,6 +65,63 @@ integer notecardLine = 0;
 // ============================================================================
 // UTILITY FUNCTIONS
 // ============================================================================
+
+// Scan inventory for animations and get linger animations
+scanInventoryAnimations()
+{
+    // Clear animation list
+    available_linger_animations = [];
+    
+    // Scan all animations in inventory
+    integer inv_count = llGetInventoryNumber(INVENTORY_ANIMATION);
+    integer i;
+    
+    for (i = 0; i < inv_count; i++)
+    {
+        string anim_name = llGetInventoryName(INVENTORY_ANIMATION, i);
+        
+        // Only process animations starting with "anim"
+        if (llSubStringIndex(anim_name, "anim") == 0)
+        {
+            // Exclude the special category animations
+            if (llSubStringIndex(anim_name, "anim walk") == 0)
+            {
+                // Skip walk animations
+            }
+            else if (llSubStringIndex(anim_name, "anim stand") == 0)
+            {
+                // Skip stand animations
+            }
+            else if (llSubStringIndex(anim_name, "anim sit") == 0)
+            {
+                // Skip sit animations
+            }
+            else if (llSubStringIndex(anim_name, "anim dance") == 0)
+            {
+                // Skip dance animations
+            }
+            else if (llSubStringIndex(anim_name, "anim turnleft") == 0)
+            {
+                // Skip turn left animations
+            }
+            else if (llSubStringIndex(anim_name, "anim turnright") == 0)
+            {
+                // Skip turn right animations
+            }
+            else
+            {
+                // Any other "anim [tag]" is available for linger tasks
+                available_linger_animations += [anim_name];
+            }
+        }
+    }
+    
+    // Report what was found
+    if (llGetListLength(available_linger_animations) > 0)
+    {
+        llOwnerSay("🎭 Discovered " + (string)llGetListLength(available_linger_animations) + " linger animations");
+    }
+}
 
 // Check if user is authorized for training
 integer isAuthorizedTrainer(key user)
@@ -304,7 +363,7 @@ showAnimationMenu()
 {
     clearListeners();
     
-    if (llGetListLength(available_animations) == 0)
+    if (llGetListLength(available_linger_animations) == 0)
     {
         // Skip animation selection
         wp_animation = "";
@@ -325,7 +384,7 @@ showAnimationMenu()
     string message = "🎭 Waypoint " + (string)waypoint_counter + 
                      "\n\nSelect animation:";
     
-    list buttons = available_animations + ["None"];
+    list buttons = available_linger_animations + ["None"];
     llDialog(training_user, message, buttons, dialog_channel);
     
     training_state = "ANIMATION";
@@ -419,6 +478,9 @@ default
     {
         llOwnerSay("Rose Tap-to-Train Wizard ready");
         
+        // Scan inventory for animations using naming convention
+        scanInventoryAnimations();
+        
         // Read configuration from RoseConfig if available
         if (llGetInventoryType("RoseConfig") == INVENTORY_NOTECARD)
         {
@@ -436,23 +498,15 @@ default
                 data = llStringTrim(data, STRING_TRIM);
                 
                 // Check for section headers
-                if (data == "[AvailableAnimations]")
-                {
-                    current_section = "animations";
-                }
-                else if (data == "[AvailableAttachables]")
+                if (data == "[AvailableAttachables]")
                 {
                     current_section = "attachables";
                 }
                 // Skip empty lines and comments
                 else if (data != "" && llGetSubString(data, 0, 0) != "#")
                 {
-                    // If we're in a section, add to appropriate list
-                    if (current_section == "animations" && llSubStringIndex(data, "=") == -1)
-                    {
-                        available_animations += [data];
-                    }
-                    else if (current_section == "attachables" && llSubStringIndex(data, "=") == -1)
+                    // If we're in attachables section, add to list
+                    if (current_section == "attachables" && llSubStringIndex(data, "=") == -1)
                     {
                         available_attachables += [data];
                     }
@@ -489,14 +543,13 @@ default
             else
             {
                 // Finished reading notecard
-                if (llGetListLength(available_animations) > 0)
-                {
-                    llOwnerSay("✅ Loaded " + (string)llGetListLength(available_animations) + " animations");
-                }
                 if (llGetListLength(available_attachables) > 0)
                 {
                     llOwnerSay("✅ Loaded " + (string)llGetListLength(available_attachables) + " attachables");
                 }
+                
+                // Scan inventory for animations using naming convention
+                scanInventoryAnimations();
             }
         }
     }
@@ -802,6 +855,12 @@ default
             {
                 llOwnerSay("🔄 Configuration updated, reloading...");
                 llResetScript();
+            }
+            else
+            {
+                // Rescan animations when inventory changes
+                llOwnerSay("🔄 Inventory changed, rescanning animations...");
+                scanInventoryAnimations();
             }
         }
     }

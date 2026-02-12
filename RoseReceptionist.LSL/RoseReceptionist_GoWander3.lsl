@@ -37,10 +37,17 @@ integer waypointConfigLine = 0;
 string WAYPOINT_CONFIG_NOTECARD = "[WPP]WaypointConfig";
 list waypoint_configs = []; // [wp_num, wp_pos, json_config, ...]
 
-// Available animations and attachables from RoseConfig
-list available_animations = [];
+// Animation lists discovered from inventory
+list available_walk_animations = [];    // "anim walk" animations for navigation
+list available_stand_animations = [];   // "anim stand" animations
+list available_sit_animations = [];     // "anim sit" animations
+list available_dance_animations = [];   // "anim dance" animations
+list available_turnleft_animations = []; // "anim turnleft" animations
+list available_turnright_animations = []; // "anim turnright" animations
+list available_linger_animations = [];  // Other "anim [tag]" for linger tasks
+
+// Attachables from RoseConfig
 list available_attachables = [];
-list available_walk_animations = [];  // Walk animations for navigation
 string current_section = "";
 
 // ============================================================================
@@ -95,6 +102,80 @@ integer confirmation_channel = 0;
 // ============================================================================
 // UTILITY FUNCTIONS
 // ============================================================================
+
+// Scan inventory for animations and categorize by naming convention
+scanInventoryAnimations()
+{
+    // Clear all animation lists
+    available_walk_animations = [];
+    available_stand_animations = [];
+    available_sit_animations = [];
+    available_dance_animations = [];
+    available_turnleft_animations = [];
+    available_turnright_animations = [];
+    available_linger_animations = [];
+    
+    // Scan all animations in inventory
+    integer inv_count = llGetInventoryNumber(INVENTORY_ANIMATION);
+    integer i;
+    
+    for (i = 0; i < inv_count; i++)
+    {
+        string anim_name = llGetInventoryName(INVENTORY_ANIMATION, i);
+        
+        // Only process animations starting with "anim"
+        if (llSubStringIndex(anim_name, "anim") == 0)
+        {
+            // Check the specific category
+            if (llSubStringIndex(anim_name, "anim walk") == 0)
+            {
+                available_walk_animations += [anim_name];
+            }
+            else if (llSubStringIndex(anim_name, "anim stand") == 0)
+            {
+                available_stand_animations += [anim_name];
+            }
+            else if (llSubStringIndex(anim_name, "anim sit") == 0)
+            {
+                available_sit_animations += [anim_name];
+            }
+            else if (llSubStringIndex(anim_name, "anim dance") == 0)
+            {
+                available_dance_animations += [anim_name];
+            }
+            else if (llSubStringIndex(anim_name, "anim turnleft") == 0)
+            {
+                available_turnleft_animations += [anim_name];
+            }
+            else if (llSubStringIndex(anim_name, "anim turnright") == 0)
+            {
+                available_turnright_animations += [anim_name];
+            }
+            else
+            {
+                // Any other "anim [tag]" goes to linger animations
+                available_linger_animations += [anim_name];
+            }
+        }
+    }
+    
+    // Report what was found
+    llOwnerSay("🎭 Animation Discovery:");
+    if (llGetListLength(available_walk_animations) > 0)
+        llOwnerSay("  ✅ " + (string)llGetListLength(available_walk_animations) + " walk animations");
+    if (llGetListLength(available_stand_animations) > 0)
+        llOwnerSay("  ✅ " + (string)llGetListLength(available_stand_animations) + " stand animations");
+    if (llGetListLength(available_sit_animations) > 0)
+        llOwnerSay("  ✅ " + (string)llGetListLength(available_sit_animations) + " sit animations");
+    if (llGetListLength(available_dance_animations) > 0)
+        llOwnerSay("  ✅ " + (string)llGetListLength(available_dance_animations) + " dance animations");
+    if (llGetListLength(available_turnleft_animations) > 0)
+        llOwnerSay("  ✅ " + (string)llGetListLength(available_turnleft_animations) + " turn left animations");
+    if (llGetListLength(available_turnright_animations) > 0)
+        llOwnerSay("  ✅ " + (string)llGetListLength(available_turnright_animations) + " turn right animations");
+    if (llGetListLength(available_linger_animations) > 0)
+        llOwnerSay("  ✅ " + (string)llGetListLength(available_linger_animations) + " linger animations");
+}
 
 // Start a random walk animation
 startWalkAnimation()
@@ -761,6 +842,8 @@ default
         else
         {
             llOwnerSay("No RoseConfig notecard found, using defaults");
+            // Still scan inventory for animations
+            scanInventoryAnimations();
             initializeNavigation();
         }
     }
@@ -775,33 +858,17 @@ default
                 data = llStringTrim(data, STRING_TRIM);
                 
                 // Check for section headers
-                if (data == "[AvailableAnimations]")
-                {
-                    current_section = "animations";
-                }
-                else if (data == "[AvailableAttachables]")
+                if (data == "[AvailableAttachables]")
                 {
                     current_section = "attachables";
-                }
-                else if (data == "[AvailableWalkAnimations]")
-                {
-                    current_section = "walk_animations";
                 }
                 // Skip empty lines and comments
                 else if (data != "" && llGetSubString(data, 0, 0) != "#")
                 {
-                    // If we're in a section, add to appropriate list
-                    if (current_section == "animations" && llSubStringIndex(data, "=") == -1)
-                    {
-                        available_animations += [data];
-                    }
-                    else if (current_section == "attachables" && llSubStringIndex(data, "=") == -1)
+                    // If we're in attachables section, add to list
+                    if (current_section == "attachables" && llSubStringIndex(data, "=") == -1)
                     {
                         available_attachables += [data];
-                    }
-                    else if (current_section == "walk_animations" && llSubStringIndex(data, "=") == -1)
-                    {
-                        available_walk_animations += [data];
                     }
                     else
                     {
@@ -836,20 +903,17 @@ default
             }
             else
             {
-                // Finished reading RoseConfig, now load waypoint config
+                // Finished reading RoseConfig
                 llOwnerSay("Configuration loaded.");
-                if (llGetListLength(available_animations) > 0)
-                {
-                    llOwnerSay("✅ Loaded " + (string)llGetListLength(available_animations) + " animations");
-                }
                 if (llGetListLength(available_attachables) > 0)
                 {
                     llOwnerSay("✅ Loaded " + (string)llGetListLength(available_attachables) + " attachables");
                 }
-                if (llGetListLength(available_walk_animations) > 0)
-                {
-                    llOwnerSay("✅ Loaded " + (string)llGetListLength(available_walk_animations) + " walk animations");
-                }
+                
+                // Scan inventory for animations using naming convention
+                scanInventoryAnimations();
+                
+                // Now load waypoint config
                 loadWaypointConfig();
                 
                 // If no waypoint config notecard, start navigation
@@ -1148,6 +1212,12 @@ default
             {
                 llOwnerSay("🔄 Waypoint configuration updated, reloading...");
                 llResetScript();
+            }
+            else
+            {
+                // Rescan animations when inventory changes
+                llOwnerSay("🔄 Inventory changed, rescanning animations...");
+                scanInventoryAnimations();
             }
         }
     }

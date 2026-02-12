@@ -30,20 +30,15 @@ CHAT_RANGE=20
 # Receptionist Name (what she responds to in chat)
 RECEPTIONIST_NAME=Rose
 
-[AvailableWalkAnimations]
-# Add walk animations for navigation here
-# Example:
-# casual_walk
-# business_walk
-# slow_walk
-
-[AvailableAnimations]
-wave
-offer
-think
-typing
-watering
-reaching
+# Note: Animations are now discovered automatically from inventory
+# Any animation in inventory starting with "anim" will be categorized:
+#   - "anim walk" = walk animations (for navigation)
+#   - "anim stand" = stand animations
+#   - "anim sit" = sit animations
+#   - "anim dance" = dance animations
+#   - "anim turnleft" = turn left animations
+#   - "anim turnright" = turn right animations
+#   - Other "anim [tag]" = linger animations (for waypoint activities)
 
 [AvailableAttachables]
 Clipboard
