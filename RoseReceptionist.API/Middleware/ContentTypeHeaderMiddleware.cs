@@ -10,6 +10,14 @@ public class ContentTypeHeaderMiddleware
 {
     private readonly RequestDelegate _next;
     private readonly ILogger<ContentTypeHeaderMiddleware> _logger;
+    
+    // Allowlist of acceptable content types for security
+    private static readonly HashSet<string> AllowedContentTypes = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "application/json",
+        "application/xml",
+        "text/plain"
+    };
 
     public ContentTypeHeaderMiddleware(RequestDelegate next, ILogger<ContentTypeHeaderMiddleware> logger)
     {
@@ -22,20 +30,30 @@ public class ContentTypeHeaderMiddleware
         // Check for X-Content-Type header (our custom header for Second Life compatibility)
         if (context.Request.Headers.TryGetValue("X-Content-Type", out var xContentType))
         {
-            var contentType = xContentType.ToString();
+            var contentType = xContentType.ToString().Trim();
             
-            // If X-Content-Type is application/json, override the actual Content-Type header
-            if (contentType.Equals("application/json", StringComparison.OrdinalIgnoreCase))
+            // Validate against allowlist for security
+            if (AllowedContentTypes.Contains(contentType))
             {
-                _logger.LogDebug("X-Content-Type header detected: {ContentType}. Overriding Content-Type for JSON parsing.", contentType);
+                // Log at Information level for production auditability
+                _logger.LogInformation(
+                    "X-Content-Type header override: {XContentType} -> Content-Type for request from {IP} to {Path}", 
+                    contentType, 
+                    context.Connection.RemoteIpAddress, 
+                    context.Request.Path);
                 
-                // Override the Content-Type header so ASP.NET can properly parse JSON
-                context.Request.ContentType = "application/json";
+                // Override the Content-Type header so ASP.NET can properly parse the body
+                context.Request.ContentType = contentType;
             }
             else
             {
-                _logger.LogDebug("X-Content-Type header detected: {ContentType}", contentType);
-                context.Request.ContentType = contentType;
+                // Log security warning for invalid content type attempt
+                _logger.LogWarning(
+                    "Blocked X-Content-Type header with invalid value: {XContentType} from {IP} to {Path}. Only allowed: {AllowedTypes}", 
+                    contentType,
+                    context.Connection.RemoteIpAddress,
+                    context.Request.Path,
+                    string.Join(", ", AllowedContentTypes));
             }
         }
 
