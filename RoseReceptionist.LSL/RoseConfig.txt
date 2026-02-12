@@ -30,6 +30,13 @@ CHAT_RANGE=20
 # Receptionist Name (what she responds to in chat)
 RECEPTIONIST_NAME=Rose
 
+[AvailableWalkAnimations]
+# Add walk animations for navigation here
+# Example:
+# casual_walk
+# business_walk
+# slow_walk
+
 [AvailableAnimations]
 wave
 offer

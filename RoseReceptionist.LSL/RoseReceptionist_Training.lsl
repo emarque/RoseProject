@@ -11,6 +11,8 @@ string WAYPOINT_PREFIX = "Waypoint";
 // Link messages
 integer LINK_TRAINING_START = 3000;
 integer LINK_TRAINING_COMPLETE = 3001;
+integer LINK_TRAINING_ACTIVE = 3002;  // Notify other scripts training is active
+integer LINK_TRAINING_CANCEL = 3003;  // Notify other scripts training cancelled
 
 // ============================================================================
 // STATE VARIABLES
@@ -214,9 +216,12 @@ startTraining(key user, string userName)
     waypoint_counter = 0;
     training_state = "ACTIVE";
     
+    // Notify other scripts that training is active
+    llMessageLinked(LINK_SET, LINK_TRAINING_ACTIVE, (string)user, user);
+    
     llOwnerSay("🎓 Training Mode activated by " + userName);
     llRegionSayTo(user, 0, "Tap me at each waypoint location to configure");
-    llSetTimerEvent(300.0); // 5-minute timeout
+    llSetTimerEvent(30.0); // 30-second timeout for each waypoint
 }
 
 showWaypointTypeMenu()
@@ -362,7 +367,7 @@ outputWaypointConfig()
     resetWaypointData();
     training_state = "ACTIVE";
     llRegionSayTo(training_user, 0, "✓ Waypoint " + (string)(waypoint_counter - 1) + " configured. Tap me at next location or say 'done'.");
-    llSetTimerEvent(300.0); // Back to 5-minute timeout
+    llSetTimerEvent(30.0); // 30-second timeout
 }
 
 completeTraining()
@@ -374,6 +379,9 @@ completeTraining()
     
     llRegionSayTo(training_user, 0, "✅ Training complete! " + (string)waypoint_counter + " waypoints configured.");
     llOwnerSay("📝 Training complete. Copy config above and paste into [WPP]WaypointConfig notecard");
+    
+    // Notify other scripts that training is complete
+    llMessageLinked(LINK_SET, LINK_TRAINING_COMPLETE, "", NULL_KEY);
     
     training_user = NULL_KEY;
     training_user_name = "";
@@ -389,6 +397,9 @@ cancelTraining()
     {
         llRegionSayTo(training_user, 0, "❌ Training cancelled.");
     }
+    
+    // Notify other scripts that training is cancelled
+    llMessageLinked(LINK_SET, LINK_TRAINING_CANCEL, "", NULL_KEY);
     
     training_state = "IDLE";
     training_active = FALSE;
@@ -526,7 +537,7 @@ default
                 if (pending_action == "DONE_TRAINING")
                 {
                     training_state = "ACTIVE";
-                    llSetTimerEvent(300.0);
+                    llSetTimerEvent(30.0);
                 }
             }
             
@@ -757,7 +768,7 @@ default
             if (pending_action == "DONE_TRAINING" && training_state != "IDLE")
             {
                 training_state = "ACTIVE";
-                llSetTimerEvent(300.0);
+                llSetTimerEvent(30.0);
             }
             else
             {

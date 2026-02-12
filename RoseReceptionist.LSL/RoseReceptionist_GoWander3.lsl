@@ -40,6 +40,7 @@ list waypoint_configs = []; // [wp_num, wp_pos, json_config, ...]
 // Available animations and attachables from RoseConfig
 list available_animations = [];
 list available_attachables = [];
+list available_walk_animations = [];  // Walk animations for navigation
 string current_section = "";
 
 // ============================================================================
@@ -59,6 +60,9 @@ integer is_navigating = FALSE;
 integer wander_enabled = TRUE;
 integer is_in_shift = FALSE;
 integer last_report_day = -1; // Track last day report was generated
+
+// Walk animation state
+string current_walk_animation = "";  // Currently playing walk animation
 
 // Activity data
 string activity_type = "";
@@ -91,6 +95,46 @@ integer confirmation_channel = 0;
 // ============================================================================
 // UTILITY FUNCTIONS
 // ============================================================================
+
+// Start a random walk animation
+startWalkAnimation()
+{
+    // Stop any current walk animation first
+    stopWalkAnimation();
+    
+    // Check if we have walk animations available
+    if (llGetListLength(available_walk_animations) == 0)
+    {
+        // No walk animations configured, skip
+        return;
+    }
+    
+    // Pick a random walk animation from the list
+    integer anim_count = llGetListLength(available_walk_animations);
+    integer random_index = (integer)llFrand(anim_count);
+    string walk_anim = llList2String(available_walk_animations, random_index);
+    
+    // Check if animation exists in inventory
+    if (llGetInventoryType(walk_anim) == INVENTORY_ANIMATION)
+    {
+        llStartAnimation(walk_anim);
+        current_walk_animation = walk_anim;
+    }
+    else
+    {
+        llOwnerSay("⚠️ Walk animation '" + walk_anim + "' not found in inventory");
+    }
+}
+
+// Stop the current walk animation
+stopWalkAnimation()
+{
+    if (current_walk_animation != "")
+    {
+        llStopAnimation(current_walk_animation);
+        current_walk_animation = "";
+    }
+}
 
 // Parse JSON from prim description
 list parseWaypointJSON(string json)
@@ -276,6 +320,7 @@ executeConfirmedAction(string action, string data)
             if (is_navigating)
             {
                 llNavigateTo(llGetPos(), []);
+                stopWalkAnimation();
                 is_navigating = FALSE;
             }
             llSetTimerEvent(0.0);
@@ -683,6 +728,9 @@ moveToNextWaypoint()
     current_target_pos = llList2Vector(waypoint_configs, current_waypoint_index * 3 + 1);
     current_target_key = NULL_KEY; // No prim keys, using positions only
     
+    // Start a random walk animation before navigating
+    startWalkAnimation();
+    
     llNavigateTo(current_target_pos, [FORCE_DIRECT_PATH, TRUE]);
     is_navigating = TRUE;
     navigation_start_time = llGetUnixTime();
@@ -735,6 +783,10 @@ default
                 {
                     current_section = "attachables";
                 }
+                else if (data == "[AvailableWalkAnimations]")
+                {
+                    current_section = "walk_animations";
+                }
                 // Skip empty lines and comments
                 else if (data != "" && llGetSubString(data, 0, 0) != "#")
                 {
@@ -746,6 +798,10 @@ default
                     else if (current_section == "attachables" && llSubStringIndex(data, "=") == -1)
                     {
                         available_attachables += [data];
+                    }
+                    else if (current_section == "walk_animations" && llSubStringIndex(data, "=") == -1)
+                    {
+                        available_walk_animations += [data];
                     }
                     else
                     {
@@ -789,6 +845,10 @@ default
                 if (llGetListLength(available_attachables) > 0)
                 {
                     llOwnerSay("✅ Loaded " + (string)llGetListLength(available_attachables) + " attachables");
+                }
+                if (llGetListLength(available_walk_animations) > 0)
+                {
+                    llOwnerSay("✅ Loaded " + (string)llGetListLength(available_walk_animations) + " walk animations");
                 }
                 loadWaypointConfig();
                 
@@ -898,7 +958,8 @@ default
             
             if (distance < 1.0)
             {
-                // Reached waypoint
+                // Reached waypoint - stop walk animation
+                stopWalkAnimation();
                 is_navigating = FALSE;
                 processWaypoint(current_target_key, current_target_pos);
             }
@@ -935,7 +996,8 @@ default
     
     moving_end()
     {
-        // Navigation completed
+        // Navigation completed - stop walk animation
+        stopWalkAnimation();
         is_navigating = FALSE;
         
         if (current_state == "WALKING")
@@ -955,6 +1017,7 @@ default
                 if (is_navigating)
                 {
                     llNavigateTo(llGetPos(), []);
+                    stopWalkAnimation();
                     is_navigating = FALSE;
                 }
                 

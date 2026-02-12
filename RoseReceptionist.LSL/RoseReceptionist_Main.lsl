@@ -28,6 +28,9 @@ integer LINK_SPEAK = 1002;
 integer LINK_ANIMATION = 1003;
 integer LINK_HTTP_REQUEST = 1004;
 integer LINK_TRAINING_START = 3000;
+integer LINK_TRAINING_ACTIVE = 3002;  // Training mode is active
+integer LINK_TRAINING_COMPLETE = 3001;
+integer LINK_TRAINING_CANCEL = 3003;  // Training mode cancelled
 
 // HTTP request tracking
 list http_requests = []; // [request_id, type, data]
@@ -60,6 +63,10 @@ string pending_action_data = "";   // Associated data
 key pending_action_user = NULL_KEY;
 integer confirmation_listener = 0;
 integer confirmation_channel = 0;
+
+// Training mode state
+integer training_mode_active = FALSE;
+key training_mode_user = NULL_KEY;
 
 // State
 key current_http_request;
@@ -667,6 +674,18 @@ default
         key toucher = llDetectedKey(0);
         string name = llDetectedName(0);
         
+        // If training mode is active, only respond to the training user
+        if (training_mode_active)
+        {
+            if (toucher != training_mode_user)
+            {
+                // Ignore touches from other users during training
+                return;
+            }
+            // Training user's touch - let Training script handle it
+            return;
+        }
+        
         // Check what kind of key we have, then show appropriate menu
         checkMasterKeyAndShowMenu(toucher, name);
     }
@@ -892,7 +911,18 @@ default
     
     link_message(integer sender, integer num, string msg, key link_id)
     {
-        if (num == LINK_SENSOR_DETECTED)
+        // Handle training mode state changes
+        if (num == LINK_TRAINING_ACTIVE)
+        {
+            training_mode_active = TRUE;
+            training_mode_user = link_id;
+        }
+        else if (num == LINK_TRAINING_COMPLETE || num == LINK_TRAINING_CANCEL)
+        {
+            training_mode_active = FALSE;
+            training_mode_user = NULL_KEY;
+        }
+        else if (num == LINK_SENSOR_DETECTED)
         {
             // Avatar detected: msg format is "avatarKey|avatarName|location"
             list parts = llParseString2List(msg, ["|"], []);
