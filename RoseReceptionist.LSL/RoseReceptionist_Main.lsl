@@ -200,7 +200,7 @@ checkMasterKeyAndShowMenu(key toucher, string name)
     
     key http_request_id = llHTTPRequest(url,
         [HTTP_METHOD, "GET",
-         HTTP_CUSTOM_HEADER, "X-API-Key", SUBSCRIBER_KEY,
+         HTTP_CUSTOM_HEADER, "X-API-Key", (string)SUBSCRIBER_KEY,
          HTTP_BODY_MAXLENGTH, 16384],
         "");
     
@@ -213,13 +213,15 @@ sendSystemRequest(string endpoint, string method, string json)
     string url = API_ENDPOINT + endpoint;
     
     list params = [HTTP_METHOD, method,
-                   HTTP_CUSTOM_HEADER, "X-API-Key", SUBSCRIBER_KEY,
+                   HTTP_CUSTOM_HEADER, "X-API-Key", (string)SUBSCRIBER_KEY,
                    HTTP_BODY_MAXLENGTH, 16384];
     
-    // Always set content type for PUT/POST requests
+    // Always set X-Content-Type for PUT/POST requests (Second Life compatibility)
+    // Second Life forces Content-Type to "text/plain; charset=utf-8", so we use X-Content-Type
+    // which the backend server will recognize and treat as JSON
     if (method == "PUT" || method == "POST")
     {
-        params += [HTTP_CUSTOM_HEADER, "Content-Type", "application/json"];
+        params += [HTTP_CUSTOM_HEADER, "X-Content-Type", "application/json"];
     }
     
     key http_request_id = llHTTPRequest(url, params, json);
@@ -249,8 +251,8 @@ sendArrivalRequest(string avatarKey, string avatarName, string location)
     
     key http_request_id = llHTTPRequest(url,
         [HTTP_METHOD, "POST",
-         HTTP_CUSTOM_HEADER, "Content-Type", "application/json",
-         HTTP_CUSTOM_HEADER, "X-API-Key", SUBSCRIBER_KEY,
+         HTTP_CUSTOM_HEADER, "X-Content-Type", "application/json",
+         HTTP_CUSTOM_HEADER, "X-API-Key", (string)SUBSCRIBER_KEY,
          HTTP_BODY_MAXLENGTH, 16384],
         json);
     
@@ -285,8 +287,8 @@ sendChatRequest(string avatarKey, string avatarName, string message, string sess
     
     key http_request_id = llHTTPRequest(url,
         [HTTP_METHOD, "POST",
-         HTTP_CUSTOM_HEADER, "Content-Type", "application/json",
-         HTTP_CUSTOM_HEADER, "X-API-Key", SUBSCRIBER_KEY,
+         HTTP_CUSTOM_HEADER, "X-Content-Type", "application/json",
+         HTTP_CUSTOM_HEADER, "X-API-Key", (string)SUBSCRIBER_KEY,
          HTTP_BODY_MAXLENGTH, 16384],
         json);
     

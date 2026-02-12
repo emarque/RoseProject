@@ -9,6 +9,25 @@ Development: http://localhost:5000/api
 ## Authentication
 All endpoints currently accept anonymous requests. In production, consider adding API key authentication.
 
+## Important: Second Life Content-Type Workaround
+
+**For Second Life clients:** Second Life forces the Content-Type header to `text/plain; charset=utf-8` and does not allow it to be customized. To work around this limitation:
+
+1. **Do NOT set** the `Content-Type` header (Second Life will block it)
+2. **Instead, use** the `X-Content-Type` custom header with value `application/json`
+3. The server's middleware will automatically detect `X-Content-Type` and parse the body as JSON
+
+**Example LSL Code:**
+```lsl
+llHTTPRequest(url,
+    [HTTP_METHOD, "POST",
+     HTTP_CUSTOM_HEADER, "X-Content-Type", "application/json",
+     HTTP_CUSTOM_HEADER, "X-API-Key", API_KEY],
+    json_body);
+```
+
+**Note:** Regular HTTP clients (Postman, curl, etc.) should still use the standard `Content-Type: application/json` header.
+
 ## Endpoints
 
 ### Chat Endpoints
