@@ -89,6 +89,9 @@ app.UseSerilogRequestLogging();
 
 app.UseCors();
 
+// Must be before API key authentication and routing to properly handle Content-Type for JSON parsing
+app.UseContentTypeHeader();
+
 app.UseApiKeyAuthentication();
 
 app.UseHttpsRedirection();
