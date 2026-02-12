@@ -94,12 +94,10 @@ sendSystemRequest(string endpoint, string method, string json, key requestingUse
                    HTTP_CUSTOM_HEADER, "X-API-Key", (string)SUBSCRIBER_KEY,
                    HTTP_BODY_MAXLENGTH, 16384];
     
-    // Always set X-Content-Type for PUT/POST requests (Second Life compatibility)
-    // Second Life forces Content-Type to "text/plain; charset=utf-8", so we use X-Content-Type
-    // which the backend server will recognize and treat as JSON
+    // Always set Content-Type for PUT/POST requests
     if (method == "PUT" || method == "POST")
     {
-        params += [HTTP_CUSTOM_HEADER, "X-Content-Type", "application/json"];
+        params += [HTTP_MIMETYPE, "application/json"];
     }
     
     key http_request_id = llHTTPRequest(url, params, json);
