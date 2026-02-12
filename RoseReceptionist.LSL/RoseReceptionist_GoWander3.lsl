@@ -123,31 +123,33 @@ scanInventoryAnimations()
     {
         string anim_name = llGetInventoryName(INVENTORY_ANIMATION, i);
         
-        // Only process animations starting with "anim"
-        if (llSubStringIndex(anim_name, "anim") == 0)
+        // Only process animations starting with "anim "
+        if (llSubStringIndex(anim_name, "anim ") == 0)
         {
-            // Check the specific category
-            if (llSubStringIndex(anim_name, "anim walk") == 0)
+            // Check the specific category - must match "anim [category] " or end after category
+            string after_anim = llGetSubString(anim_name, 5, -1); // Skip "anim "
+            
+            if (llSubStringIndex(after_anim, "walk ") == 0 || after_anim == "walk")
             {
                 available_walk_animations += [anim_name];
             }
-            else if (llSubStringIndex(anim_name, "anim stand") == 0)
+            else if (llSubStringIndex(after_anim, "stand ") == 0 || after_anim == "stand")
             {
                 available_stand_animations += [anim_name];
             }
-            else if (llSubStringIndex(anim_name, "anim sit") == 0)
+            else if (llSubStringIndex(after_anim, "sit ") == 0 || after_anim == "sit")
             {
                 available_sit_animations += [anim_name];
             }
-            else if (llSubStringIndex(anim_name, "anim dance") == 0)
+            else if (llSubStringIndex(after_anim, "dance ") == 0 || after_anim == "dance")
             {
                 available_dance_animations += [anim_name];
             }
-            else if (llSubStringIndex(anim_name, "anim turnleft") == 0)
+            else if (llSubStringIndex(after_anim, "turnleft ") == 0 || after_anim == "turnleft")
             {
                 available_turnleft_animations += [anim_name];
             }
-            else if (llSubStringIndex(anim_name, "anim turnright") == 0)
+            else if (llSubStringIndex(after_anim, "turnright ") == 0 || after_anim == "turnright")
             {
                 available_turnright_animations += [anim_name];
             }

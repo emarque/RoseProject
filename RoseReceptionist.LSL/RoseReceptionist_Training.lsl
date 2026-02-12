@@ -80,35 +80,22 @@ scanInventoryAnimations()
     {
         string anim_name = llGetInventoryName(INVENTORY_ANIMATION, i);
         
-        // Only process animations starting with "anim"
-        if (llSubStringIndex(anim_name, "anim") == 0)
+        // Only process animations starting with "anim "
+        if (llSubStringIndex(anim_name, "anim ") == 0)
         {
-            // Exclude the special category animations
-            if (llSubStringIndex(anim_name, "anim walk") == 0)
-            {
-                // Skip walk animations
-            }
-            else if (llSubStringIndex(anim_name, "anim stand") == 0)
-            {
-                // Skip stand animations
-            }
-            else if (llSubStringIndex(anim_name, "anim sit") == 0)
-            {
-                // Skip sit animations
-            }
-            else if (llSubStringIndex(anim_name, "anim dance") == 0)
-            {
-                // Skip dance animations
-            }
-            else if (llSubStringIndex(anim_name, "anim turnleft") == 0)
-            {
-                // Skip turn left animations
-            }
-            else if (llSubStringIndex(anim_name, "anim turnright") == 0)
-            {
-                // Skip turn right animations
-            }
-            else
+            // Check if it's NOT one of the special categories
+            string after_anim = llGetSubString(anim_name, 5, -1); // Skip "anim "
+            
+            integer is_special = (
+                llSubStringIndex(after_anim, "walk ") == 0 || after_anim == "walk" ||
+                llSubStringIndex(after_anim, "stand ") == 0 || after_anim == "stand" ||
+                llSubStringIndex(after_anim, "sit ") == 0 || after_anim == "sit" ||
+                llSubStringIndex(after_anim, "dance ") == 0 || after_anim == "dance" ||
+                llSubStringIndex(after_anim, "turnleft ") == 0 || after_anim == "turnleft" ||
+                llSubStringIndex(after_anim, "turnright ") == 0 || after_anim == "turnright"
+            );
+            
+            if (!is_special)
             {
                 // Any other "anim [tag]" is available for linger tasks
                 available_linger_animations += [anim_name];

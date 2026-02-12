@@ -6,7 +6,9 @@ Rose Receptionist uses an inventory-based animation system with automatic discov
 
 ## Naming Pattern
 
-All animations should start with **"anim"** followed by a category tag to be automatically discovered.
+All animations should start with **"anim "** (with a space) followed by a category tag to be automatically discovered.
+
+**Important:** The space after "anim" is required. Animations like "animation" or "animwalk" will not be detected.
 
 ## Animation Categories
 
@@ -106,19 +108,22 @@ All animations should start with **"anim"** followed by a category tag to be aut
 **Problem:** Animation in inventory but not showing up
 
 **Solutions:**
-- Verify the animation name starts with "anim" (lowercase)
+- Verify the animation name starts with "anim " (with a space after "anim")
 - Check that the animation is actually an ANIMATION type (not a notecard or script)
 - Look for typos in the prefix (e.g., "anim wlak" instead of "anim walk")
+- Verify there's a space after "anim" (e.g., "animwalk" won't work, use "anim walk")
 - Reset the scripts manually to force a rescan
 
 ### Wrong Category
 **Problem:** Animation appearing in wrong category or not appearing at all
 
 **Solutions:**
-- The system uses exact prefix matching
-- "anim walk casual" will be a walk animation
-- "anim casual walk" will be a linger animation (doesn't start with "anim walk")
+- The system uses exact prefix matching with space after category
+- "anim walk casual" will be a walk animation (correct)
+- "anim casual walk" will be a linger animation (doesn't start with "anim walk ")
+- "anim walkfast" will be a linger animation (no space after "walk")
 - Order matters: the system checks special categories first, then everything else is linger
+- Categories must be exact: "walk", "stand", "sit", "dance", "turnleft", "turnright"
 
 ### Animation Plays But Looks Wrong
 **Problem:** Animation detected but doesn't look right when played
