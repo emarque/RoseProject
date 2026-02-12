@@ -91,7 +91,7 @@ sendSystemRequest(string endpoint, string method, string json, key requestingUse
     string url = API_ENDPOINT + endpoint;
     
     list params = [HTTP_METHOD, method,
-                   HTTP_CUSTOM_HEADER, "X-API-Key", SUBSCRIBER_KEY,
+                   HTTP_CUSTOM_HEADER, "X-API-Key", (string)SUBSCRIBER_KEY,
                    HTTP_BODY_MAXLENGTH, 16384];
     
     // Always set content type for PUT/POST requests
