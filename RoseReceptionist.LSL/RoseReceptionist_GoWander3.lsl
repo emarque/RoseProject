@@ -884,8 +884,8 @@ moveToNextWaypoint()
     // Stop any existing motion first
     llSetKeyframedMotion([], [KFM_COMMAND, KFM_CMD_STOP]);
     
-    // Set up the motion - keyframes are: position_vector, rotation, time
-    llSetKeyframedMotion([offset, ZERO_ROTATION, time_to_travel], 
+    // Set up the motion - for KFM_TRANSLATION mode: [position_vector, time, ...]
+    llSetKeyframedMotion([offset, time_to_travel], 
                          [KFM_MODE, KFM_FORWARD, KFM_DATA, KFM_TRANSLATION]);
     
     is_navigating = TRUE;
