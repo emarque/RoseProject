@@ -18,8 +18,17 @@ WANDER_SENSOR_RANGE=50
 WANDER_SCAN_INTERVAL=5
 HOME_POSITION=<128, 128, 25>
 
-# Debug Mode - Set to TRUE to enable detailed pathfinding diagnostics
-# When enabled, outputs path_update events and navigation state changes
+# Navigation Configuration
+# Movement speed in meters per second
+MOVEMENT_SPEED=0.5
+
+# Door Blocking Detection
+# Enable to check for closed doors blocking waypoints
+DOOR_DETECTION_ENABLED=TRUE
+# Name pattern for doors (case-insensitive, partial match)
+DOOR_NAME_PATTERN=door
+
+# Debug Mode - Set to TRUE to enable detailed navigation diagnostics
 DEBUG_MODE=FALSE
 
 # Shift and Reporting Configuration

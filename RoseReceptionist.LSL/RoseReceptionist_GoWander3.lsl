@@ -16,10 +16,14 @@ string WAYPOINT_PREFIX = "Waypoint";
 integer LINK_WANDERING_STATE = 2000;
 integer LINK_ACTIVITY_UPDATE = 2001;
 
-// Navigation
-float CHARACTER_SPEED = 0.5;
+// Navigation - Using keyframed motion instead of pathfinding
+float MOVEMENT_SPEED = 0.5;  // meters per second
 integer NAVIGATION_TIMEOUT = 60; // seconds
-float WAYPOINT_POSITION_TOLERANCE = 0.1; // meters
+float WAYPOINT_POSITION_TOLERANCE = 1.0; // meters
+
+// Door blocking detection
+integer DOOR_DETECTION_ENABLED = TRUE;
+string DOOR_NAME_PATTERN = "door";  // Case-insensitive partial match
 
 // Shift times (from config)
 string SHIFT_START_TIME = "09:00";
@@ -405,7 +409,7 @@ executeConfirmedAction(string action, string data)
         {
             if (is_navigating)
             {
-                llNavigateTo(llGetPos(), []);
+                llSetKeyframedMotion([], [KFM_COMMAND, KFM_CMD_STOP]);
                 stopWalkAnimation();
                 is_navigating = FALSE;
             }
@@ -640,27 +644,100 @@ string getWaypointConfig(integer waypoint_number)
 }
 
 // ============================================================================
-// NAVIGATION FUNCTIONS
+// DOOR BLOCKING DETECTION
 // ============================================================================
 
-createPathfindingCharacter()
+// Check if a waypoint is blocked by a closed door
+integer isWaypointBlocked(vector target_pos)
 {
-    // Updated character parameters for optimal pathfinding
-    // CHARACTER_MAX_TURN_RADIUS 0.2 for tighter turns
-    // CHARACTER_RADIUS 0.185, CHARACTER_LENGTH 0.373 per requirements
-    // AVOID_NONE for direct path navigation without obstacle avoidance
-    llCreateCharacter([
-        CHARACTER_TYPE, CHARACTER_TYPE_A,
-        CHARACTER_MAX_SPEED, 2.0,
-        CHARACTER_DESIRED_SPEED, 1.5,
-        CHARACTER_DESIRED_TURN_SPEED, 1.8,
-        CHARACTER_MAX_TURN_RADIUS, 0.2,
-        CHARACTER_RADIUS, 0.185,
-        CHARACTER_LENGTH, 0.373,
-        CHARACTER_AVOIDANCE_MODE, AVOID_NONE
+    if (!DOOR_DETECTION_ENABLED) return FALSE;
+    
+    vector start_pos = llGetPos();
+    vector direction = target_pos - start_pos;
+    float distance = llVecMag(direction);
+    
+    // Cast a ray from current position to target to detect obstacles
+    list results = llCastRay(start_pos, target_pos, [
+        RC_REJECT_TYPES, RC_REJECT_AGENTS | RC_REJECT_LAND,
+        RC_MAX_HITS, 10,
+        RC_DATA_FLAGS, RC_GET_ROOT_KEY | RC_GET_LINK_NUM
     ]);
-    llOwnerSay("✅ Pathfinding character created");
+    
+    integer status = llList2Integer(results, -1);
+    if (status < 0) return FALSE;  // Ray cast failed or no hits
+    
+    integer num_hits = llList2Integer(results, -1);
+    if (num_hits == 0) return FALSE;  // No objects in the way
+    
+    // Check each detected object
+    integer i;
+    for (i = 0; i < num_hits; i++)
+    {
+        key hit_key = llList2Key(results, i * 2);
+        
+        // Get object name
+        list obj_details = llGetObjectDetails(hit_key, [OBJECT_NAME, OBJECT_ROT]);
+        string obj_name = llList2String(obj_details, 0);
+        
+        // Check if it matches door pattern (case-insensitive)
+        if (llSubStringIndex(llToLower(obj_name), llToLower(DOOR_NAME_PATTERN)) != -1)
+        {
+            // It's a door - check if it's closed
+            // A closed door typically has a rotation that blocks the path
+            // For simplicity, we consider any door in the path as potentially blocking
+            if (DEBUG_MODE)
+            {
+                llOwnerSay("DOOR: Blocked by '" + obj_name + "'");
+            }
+            return TRUE;
+        }
+    }
+    
+    return FALSE;
 }
+
+// Find next unblocked waypoint starting from current index
+integer findNextUnblockedWaypoint()
+{
+    integer num_waypoints = llGetListLength(waypoint_configs) / 3;
+    if (num_waypoints == 0) return -1;
+    
+    integer start_index = current_waypoint_index;
+    integer checked = 0;
+    
+    // Try up to all waypoints to find an unblocked one
+    while (checked < num_waypoints)
+    {
+        current_waypoint_index++;
+        if (current_waypoint_index >= num_waypoints)
+        {
+            current_waypoint_index = 0;
+        }
+        
+        vector test_pos = llList2Vector(waypoint_configs, current_waypoint_index * 3 + 1);
+        
+        if (!isWaypointBlocked(test_pos))
+        {
+            // Found an unblocked waypoint
+            return current_waypoint_index;
+        }
+        
+        checked++;
+        
+        // Avoid infinite loop
+        if (current_waypoint_index == start_index && checked > 0)
+        {
+            break;
+        }
+    }
+    
+    // All waypoints are blocked
+    return -1;
+}
+
+// ============================================================================
+// NAVIGATION FUNCTIONS
+// ============================================================================
 
 initializeNavigation()
 {
@@ -805,31 +882,55 @@ moveToNextWaypoint()
         return;
     }
     
-    current_waypoint_index++;
-    if (current_waypoint_index >= num_waypoints)
+    // Find next unblocked waypoint
+    integer found_index = findNextUnblockedWaypoint();
+    
+    if (found_index == -1)
     {
-        current_waypoint_index = 0;
+        llOwnerSay("⚠️ All waypoints blocked, waiting...");
+        llSetTimerEvent(30.0);  // Try again in 30 seconds
+        return;
     }
+    
+    current_waypoint_index = found_index;
     
     // Use waypoint configs from notecard
     integer wpNumber = llList2Integer(waypoint_configs, current_waypoint_index * 3);
     current_target_pos = llList2Vector(waypoint_configs, current_waypoint_index * 3 + 1);
     current_target_key = NULL_KEY; // No prim keys, using positions only
     
+    // Calculate movement parameters for keyframed motion
+    vector start_pos = llGetPos();
+    vector offset = current_target_pos - start_pos;
+    float distance = llVecMag(offset);
+    float time_to_travel = distance / MOVEMENT_SPEED;
+    
     if (DEBUG_MODE)
     {
         llOwnerSay("NAV: Start wp" + (string)wpNumber + " dist:" + 
-                   (string)llVecDist(llGetPos(), current_target_pos) + "m");
+                   (string)distance + "m time:" + (string)time_to_travel + "s");
     }
     
     // Start a random walk animation before navigating
     startWalkAnimation();
     
-    llNavigateTo(current_target_pos, [FORCE_DIRECT_PATH, TRUE]);
+    // Use keyframed motion to move to waypoint
+    // Stop any existing motion first
+    llSetKeyframedMotion([], [KFM_COMMAND, KFM_CMD_STOP]);
+    
+    // Set up the motion
+    list keyframes = [
+        offset,           // Position offset (relative to current position)
+        ZERO_ROTATION,    // No rotation change
+        time_to_travel    // Time to complete movement
+    ];
+    
+    llSetKeyframedMotion(keyframes, [KFM_DATA, KFM_TRANSLATION, KFM_MODE, KFM_FORWARD]);
+    
     is_navigating = TRUE;
     navigation_start_time = llGetUnixTime();
     current_state = "WALKING";
-    llSetTimerEvent(1.0);
+    llSetTimerEvent(1.0);  // Check progress every second
 }
 
 // ============================================================================
@@ -917,6 +1018,25 @@ default
                                 {
                                     DEBUG_MODE = FALSE;
                                 }
+                            }
+                            else if (configKey == "MOVEMENT_SPEED")
+                            {
+                                MOVEMENT_SPEED = (float)value;
+                            }
+                            else if (configKey == "DOOR_DETECTION_ENABLED")
+                            {
+                                if (llToUpper(value) == "TRUE" || value == "1")
+                                {
+                                    DOOR_DETECTION_ENABLED = TRUE;
+                                }
+                                else
+                                {
+                                    DOOR_DETECTION_ENABLED = FALSE;
+                                }
+                            }
+                            else if (configKey == "DOOR_NAME_PATTERN")
+                            {
+                                DOOR_NAME_PATTERN = value;
                             }
                         }
                     }
@@ -1039,7 +1159,10 @@ default
             {
                 llOwnerSay("NAV: Timeout after " + (string)NAVIGATION_TIMEOUT + "s, dist:" + 
                            (string)llVecDist(llGetPos(), current_target_pos) + "m");
-                llNavigateTo(llGetPos(), []); // Stop current navigation
+                // Stop keyframed motion
+                llSetKeyframedMotion([], [KFM_COMMAND, KFM_CMD_STOP]);
+                stopWalkAnimation();
+                is_navigating = FALSE;
                 moveToNextWaypoint();
             }
             
@@ -1047,10 +1170,11 @@ default
             vector current_pos = llGetPos();
             float distance = llVecDist(current_pos, current_target_pos);
             
-            if (distance < 1.0)
+            if (distance < WAYPOINT_POSITION_TOLERANCE)
             {
                 if (DEBUG_MODE) llOwnerSay("NAV: Arrived, dist:" + (string)distance + "m");
-                // Reached waypoint - stop walk animation
+                // Reached waypoint - stop keyframed motion and walk animation
+                llSetKeyframedMotion([], [KFM_COMMAND, KFM_CMD_STOP]);
                 stopWalkAnimation();
                 is_navigating = FALSE;
                 processWaypoint(current_target_key, current_target_pos);
@@ -1086,76 +1210,6 @@ default
         }
     }
     
-    moving_end()
-    {
-        // Navigation completed - stop walk animation
-        stopWalkAnimation();
-        is_navigating = FALSE;
-        
-        if (DEBUG_MODE) llOwnerSay("NAV: End at " + (string)llGetPos());
-        
-        if (current_state == "WALKING")
-        {
-            // We've arrived at the waypoint
-            processWaypoint(current_target_key, current_target_pos);
-        }
-    }
-    
-    path_update(integer type, list reserved)
-    {
-        // Path update event - fires during pathfinding with status updates
-        // Concise logging to minimize memory usage
-        
-        if (type == PU_GOAL_REACHED)
-        {
-            if (DEBUG_MODE) llOwnerSay("PF: Goal reached");
-        }
-        else if (type == PU_SLOWDOWN_DISTANCE_REACHED)
-        {
-            if (DEBUG_MODE) llOwnerSay("PF: Slowdown");
-        }
-        else if (type == PU_FAILURE_INVALID_START)
-        {
-            llOwnerSay("PF FAIL(4): Invalid start at " + (string)llGetPos());
-        }
-        else if (type == PU_FAILURE_INVALID_GOAL)
-        {
-            llOwnerSay("PF FAIL(5): Invalid goal " + (string)current_target_pos + " wp:" + (string)current_waypoint_index);
-        }
-        else if (type == PU_FAILURE_UNREACHABLE)
-        {
-            llOwnerSay("PF FAIL(6): Unreachable. Dist:" + (string)llVecDist(llGetPos(), current_target_pos) + "m");
-        }
-        else if (type == PU_FAILURE_TARGET_GONE)
-        {
-            llOwnerSay("PF FAIL(7): Target gone");
-        }
-        else if (type == PU_FAILURE_NO_NAVMESH)
-        {
-            llOwnerSay("PF FAIL(8): No navmesh at " + (string)llGetPos());
-        }
-        else if (type == PU_FAILURE_DYNAMIC_PATHFINDING_DISABLED)
-        {
-            llOwnerSay("PF FAIL(9): Pathfinding disabled on parcel");
-        }
-        else if (type == PU_FAILURE_PARCEL_UNREACHABLE)
-        {
-            llOwnerSay("PF FAIL(10): Parcel boundary blocks path");
-        }
-        else if (type == PU_FAILURE_OTHER)
-        {
-            llOwnerSay("PF FAIL(11): Other failure");
-        }
-        else if (type == PU_EVADE_HIDDEN || type == PU_EVADE_SPOTTED)
-        {
-            if (DEBUG_MODE) llOwnerSay("PF: Evade " + (string)type);
-        }
-        else
-        {
-            llOwnerSay("PF: Unknown type " + (string)type);
-        }
-    }
-    
     link_message(integer sender, integer num, string msg, key link_id)
     {
         if (num == LINK_WANDERING_STATE)
@@ -1165,7 +1219,7 @@ default
                 // Stop wandering during interaction
                 if (is_navigating)
                 {
-                    llNavigateTo(llGetPos(), []);
+                    llSetKeyframedMotion([], [KFM_COMMAND, KFM_CMD_STOP]);
                     stopWalkAnimation();
                     is_navigating = FALSE;
                 }
