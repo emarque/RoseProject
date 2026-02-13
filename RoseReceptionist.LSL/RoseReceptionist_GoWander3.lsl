@@ -918,14 +918,9 @@ moveToNextWaypoint()
     // Stop any existing motion first
     llSetKeyframedMotion([], [KFM_COMMAND, KFM_CMD_STOP]);
     
-    // Set up the motion
-    list keyframes = [
-        offset,           // Position offset (relative to current position)
-        ZERO_ROTATION,    // No rotation change
-        time_to_travel    // Time to complete movement
-    ];
-    
-    llSetKeyframedMotion(keyframes, [KFM_DATA, KFM_TRANSLATION, KFM_MODE, KFM_FORWARD]);
+    // Set up the motion - keyframes are: position_vector, rotation, time
+    llSetKeyframedMotion([offset, ZERO_ROTATION, time_to_travel], 
+                         [KFM_MODE, KFM_FORWARD, KFM_DATA, KFM_TRANSLATION]);
     
     is_navigating = TRUE;
     navigation_start_time = llGetUnixTime();
