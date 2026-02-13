@@ -723,12 +723,6 @@ integer findNextUnblockedWaypoint()
         }
         
         checked++;
-        
-        // Avoid infinite loop
-        if (current_waypoint_index == start_index && checked > 0)
-        {
-            break;
-        }
     }
     
     // All waypoints are blocked
