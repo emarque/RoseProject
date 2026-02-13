@@ -904,6 +904,9 @@ default
     {
         llOwnerSay("Rose Prim-Based Navigation System active");
         
+        // Enable physics for keyframed motion
+        llSetStatus(STATUS_PHYSICS, TRUE);
+        
         // Initialize batch timing
         last_batch_time = llGetUnixTime();
         
