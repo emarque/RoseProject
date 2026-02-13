@@ -4,6 +4,8 @@
 
 This document describes the debug mode feature and pathfinding diagnostics added to help diagnose navigation issues where the character gets stuck or fails to reach waypoints.
 
+**Note:** Messages use concise format to minimize memory usage and avoid Stack-Heap Collision errors.
+
 ## Problem Statement
 
 The pathfinding system was experiencing issues:
@@ -14,7 +16,7 @@ The pathfinding system was experiencing issues:
 
 ## Solution
 
-Added a configurable debug mode with comprehensive pathfinding diagnostics through the `path_update` event handler.
+Added a configurable debug mode with comprehensive pathfinding diagnostics through the `path_update` event handler, optimized for minimal memory usage.
 
 ## Configuration
 
@@ -39,6 +41,14 @@ The scripts automatically reload when the notecard is saved.
 - `TRUE`, `true`, `1` = Debug mode enabled
 - `FALSE`, `false`, `0` = Debug mode disabled (default)
 
+## Message Format
+
+All messages use concise prefixes to minimize memory usage:
+
+- `PF:` = Pathfinding info (debug mode only)
+- `PF FAIL(n):` = Pathfinding failure (always shown, n = LSL error code)
+- `NAV:` = Navigation event (debug mode mostly)
+
 ## Features
 
 ### 1. Path Update Event Handler
@@ -51,16 +61,16 @@ The `path_update` event is triggered by the LSL pathfinding system during naviga
 
 #### Failure Types
 
-| Type | Code | Always Logged | Message |
-|------|------|---------------|---------|
-| Invalid Start | 4 | ✅ Yes | Character may be off navmesh |
-| Invalid Goal | 5 | ✅ Yes | Waypoint may be off navmesh |
-| Unreachable | 6 | ✅ Yes | No path exists |
-| Target Gone | 7 | ✅ Yes | Target disappeared |
-| No Navmesh | 8 | ✅ Yes | Region may not have pathfinding enabled |
-| Pathfinding Disabled | 9 | ✅ Yes | Parcel pathfinding is disabled |
-| Parcel Unreachable | 10 | ✅ Yes | Parcel boundary blocks path |
-| Other Failure | 11 | ✅ Yes | Unknown failure |
+| Type | Code | Always Logged | Message Format |
+|------|------|---------------|----------------|
+| Invalid Start | 4 | ✅ Yes | `PF FAIL(4): Invalid start at <pos>` |
+| Invalid Goal | 5 | ✅ Yes | `PF FAIL(5): Invalid goal <pos> wp:N` |
+| Unreachable | 6 | ✅ Yes | `PF FAIL(6): Unreachable. Dist:Nm` |
+| Target Gone | 7 | ✅ Yes | `PF FAIL(7): Target gone` |
+| No Navmesh | 8 | ✅ Yes | `PF FAIL(8): No navmesh at <pos>` |
+| Pathfinding Disabled | 9 | ✅ Yes | `PF FAIL(9): Pathfinding disabled on parcel` |
+| Parcel Unreachable | 10 | ✅ Yes | `PF FAIL(10): Parcel boundary blocks path` |
+| Other Failure | 11 | ✅ Yes | `PF FAIL(11): Other failure` |
 
 ### 3. Debug Mode Detailed Logging
 
@@ -68,30 +78,23 @@ When debug mode is enabled, additional diagnostic information is logged:
 
 #### Navigation Start
 ```
-🚶 DEBUG: Starting navigation to waypoint 1
-   From: <120, 125, 25>
-   To: <140, 145, 25>
-   Distance: 28.28m
+NAV: Start wp1 dist:28.28m
 ```
 
 #### Navigation Success
 ```
-🎯 DEBUG: Path update - Goal reached
-✅ DEBUG: Navigation completed - moving_end event received
-   Final position: <140, 145, 25.1>
+PF: Goal reached
+NAV: End at <140, 145, 25.1>
 ```
 
 #### Near Waypoint
 ```
-🎯 DEBUG: Close to waypoint (0.85m), processing arrival
+NAV: Arrived, dist:0.85m
 ```
 
 #### Navigation Timeout
 ```
-⏱️ Navigation timeout (60s) - moving to next waypoint
-   Stuck at: <125, 128, 25>
-   Target was: <140, 145, 25>
-   Distance remaining: 21.21m
+NAV: Timeout after 60s, dist:21.21m
 ```
 
 ## Example Scenarios
@@ -102,13 +105,8 @@ When debug mode is enabled, additional diagnostic information is logged:
 
 **Debug Output:**
 ```
-🚶 DEBUG: Starting navigation to waypoint 1
-   From: <120, 125, 25>
-   To: <140, 145, 25>
-   Distance: 28.28m
-❌ PATHFINDING FAILURE: Invalid goal location - waypoint may be off navmesh
-   Target position: <140, 145, 25>
-   Waypoint index: 1
+NAV: Start wp1 dist:28.28m
+PF FAIL(5): Invalid goal <140, 145, 25> wp:1
 ```
 
 **Solution:** Move waypoint to be on the navmesh or rebake navmesh.
@@ -119,8 +117,7 @@ When debug mode is enabled, additional diagnostic information is logged:
 
 **Debug Output:**
 ```
-❌ PATHFINDING FAILURE: Invalid start location - character may be off navmesh
-   Current position: <120, 125, 25>
+PF FAIL(4): Invalid start at <120, 125, 25>
 ```
 
 **Solution:** Move character to navmesh or rebake navmesh.
@@ -131,9 +128,7 @@ When debug mode is enabled, additional diagnostic information is logged:
 
 **Debug Output:**
 ```
-❌ PATHFINDING FAILURE: No navmesh at location
-   This region may not have pathfinding enabled or navmesh is incomplete
-   Current position: <120, 125, 25>
+PF FAIL(8): No navmesh at <120, 125, 25>
 ```
 
 **Solution:** Enable pathfinding in region and bake navmesh.
@@ -144,8 +139,7 @@ When debug mode is enabled, additional diagnostic information is logged:
 
 **Debug Output:**
 ```
-❌ PATHFINDING FAILURE: Dynamic pathfinding disabled on this parcel
-   Ask parcel owner to enable pathfinding in About Land settings
+PF FAIL(9): Pathfinding disabled on parcel
 ```
 
 **Solution:** Enable pathfinding in parcel settings (About Land → Options → Allow Scripts → Pathfinding).
@@ -156,9 +150,7 @@ When debug mode is enabled, additional diagnostic information is logged:
 
 **Debug Output:**
 ```
-❌ PATHFINDING FAILURE: Goal unreachable - no path exists
-   From: <125, 128, 25> To: <140, 145, 25>
-   Distance: 21.21m
+PF FAIL(6): Unreachable. Dist:21.21m
 ```
 
 **Solution:** Check for obstacles, ensure clear path, or add intermediate waypoints.
@@ -169,10 +161,7 @@ When debug mode is enabled, additional diagnostic information is logged:
 
 **Debug Output:**
 ```
-⏱️ Navigation timeout (60s) - moving to next waypoint
-   Stuck at: <125, 128, 25>
-   Target was: <140, 145, 25>
-   Distance remaining: 21.21m
+NAV: Timeout after 60s, dist:21.21m
 ```
 
 **Solution:** Check for obstacles, adjust waypoint positions, or increase timeout.
