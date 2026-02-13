@@ -26,6 +26,9 @@ string SHIFT_START_TIME = "09:00";
 string SHIFT_END_TIME = "17:00";
 string DAILY_REPORT_TIME = "17:05";
 
+// Debug mode (from config)
+integer DEBUG_MODE = FALSE;
+
 // Notecard reading
 key notecardQuery;
 integer notecardLine = 0;
@@ -813,6 +816,14 @@ moveToNextWaypoint()
     current_target_pos = llList2Vector(waypoint_configs, current_waypoint_index * 3 + 1);
     current_target_key = NULL_KEY; // No prim keys, using positions only
     
+    if (DEBUG_MODE)
+    {
+        llOwnerSay("🚶 DEBUG: Starting navigation to waypoint " + (string)wpNumber);
+        llOwnerSay("   From: " + (string)llGetPos());
+        llOwnerSay("   To: " + (string)current_target_pos);
+        llOwnerSay("   Distance: " + (string)llVecDist(llGetPos(), current_target_pos) + "m");
+    }
+    
     // Start a random walk animation before navigating
     startWalkAnimation();
     
@@ -896,6 +907,18 @@ default
                             else if (configKey == "API_KEY" || configKey == "SUBSCRIBER_KEY")
                             {
                                 API_KEY = value;
+                            }
+                            else if (configKey == "DEBUG_MODE")
+                            {
+                                if (llToUpper(value) == "TRUE" || value == "1")
+                                {
+                                    DEBUG_MODE = TRUE;
+                                    llOwnerSay("✅ DEBUG_MODE: ENABLED");
+                                }
+                                else
+                                {
+                                    DEBUG_MODE = FALSE;
+                                }
                             }
                         }
                     }
@@ -1016,6 +1039,13 @@ default
             // Check for navigation timeout
             if (llGetUnixTime() - navigation_start_time > NAVIGATION_TIMEOUT)
             {
+                llOwnerSay("⏱️ Navigation timeout (" + (string)NAVIGATION_TIMEOUT + "s) - moving to next waypoint");
+                if (DEBUG_MODE)
+                {
+                    llOwnerSay("   Stuck at: " + (string)llGetPos());
+                    llOwnerSay("   Target was: " + (string)current_target_pos);
+                    llOwnerSay("   Distance remaining: " + (string)llVecDist(llGetPos(), current_target_pos) + "m");
+                }
                 llNavigateTo(llGetPos(), []); // Stop current navigation
                 moveToNextWaypoint();
             }
@@ -1026,6 +1056,10 @@ default
             
             if (distance < 1.0)
             {
+                if (DEBUG_MODE)
+                {
+                    llOwnerSay("🎯 DEBUG: Close to waypoint (" + (string)distance + "m), processing arrival");
+                }
                 // Reached waypoint - stop walk animation
                 stopWalkAnimation();
                 is_navigating = FALSE;
@@ -1068,10 +1102,97 @@ default
         stopWalkAnimation();
         is_navigating = FALSE;
         
+        if (DEBUG_MODE)
+        {
+            llOwnerSay("✅ DEBUG: Navigation completed - moving_end event received");
+            llOwnerSay("   Final position: " + (string)llGetPos());
+        }
+        
         if (current_state == "WALKING")
         {
             // We've arrived at the waypoint
             processWaypoint(current_target_key, current_target_pos);
+        }
+    }
+    
+    path_update(integer type, list reserved)
+    {
+        // Path update event - fires during pathfinding with status updates
+        // Always log navigation failures regardless of debug mode
+        
+        if (type == PU_GOAL_REACHED)
+        {
+            if (DEBUG_MODE)
+            {
+                llOwnerSay("🎯 DEBUG: Path update - Goal reached");
+            }
+        }
+        else if (type == PU_SLOWDOWN_DISTANCE_REACHED)
+        {
+            if (DEBUG_MODE)
+            {
+                llOwnerSay("🎯 DEBUG: Path update - Slowdown distance reached");
+            }
+        }
+        else if (type == PU_FAILURE_INVALID_START)
+        {
+            llOwnerSay("❌ PATHFINDING FAILURE: Invalid start location - character may be off navmesh");
+            llOwnerSay("   Current position: " + (string)llGetPos());
+        }
+        else if (type == PU_FAILURE_INVALID_GOAL)
+        {
+            llOwnerSay("❌ PATHFINDING FAILURE: Invalid goal location - waypoint may be off navmesh");
+            llOwnerSay("   Target position: " + (string)current_target_pos);
+            llOwnerSay("   Waypoint index: " + (string)current_waypoint_index);
+        }
+        else if (type == PU_FAILURE_UNREACHABLE)
+        {
+            llOwnerSay("❌ PATHFINDING FAILURE: Goal unreachable - no path exists");
+            llOwnerSay("   From: " + (string)llGetPos() + " To: " + (string)current_target_pos);
+            llOwnerSay("   Distance: " + (string)llVecDist(llGetPos(), current_target_pos) + "m");
+        }
+        else if (type == PU_FAILURE_TARGET_GONE)
+        {
+            llOwnerSay("❌ PATHFINDING FAILURE: Target disappeared during navigation");
+        }
+        else if (type == PU_FAILURE_NO_NAVMESH)
+        {
+            llOwnerSay("❌ PATHFINDING FAILURE: No navmesh at location");
+            llOwnerSay("   This region may not have pathfinding enabled or navmesh is incomplete");
+            llOwnerSay("   Current position: " + (string)llGetPos());
+        }
+        else if (type == PU_FAILURE_DYNAMIC_PATHFINDING_DISABLED)
+        {
+            llOwnerSay("❌ PATHFINDING FAILURE: Dynamic pathfinding disabled on this parcel");
+            llOwnerSay("   Ask parcel owner to enable pathfinding in About Land settings");
+        }
+        else if (type == PU_FAILURE_PARCEL_UNREACHABLE)
+        {
+            llOwnerSay("❌ PATHFINDING FAILURE: Parcel boundary blocks path");
+            llOwnerSay("   Cannot cross to target parcel");
+        }
+        else if (type == PU_FAILURE_OTHER)
+        {
+            llOwnerSay("❌ PATHFINDING FAILURE: Other/unknown failure (type 11)");
+            llOwnerSay("   From: " + (string)llGetPos() + " To: " + (string)current_target_pos);
+        }
+        else if (type == PU_EVADE_HIDDEN)
+        {
+            if (DEBUG_MODE)
+            {
+                llOwnerSay("🎯 DEBUG: Path update - Evade hidden");
+            }
+        }
+        else if (type == PU_EVADE_SPOTTED)
+        {
+            if (DEBUG_MODE)
+            {
+                llOwnerSay("🎯 DEBUG: Path update - Evade spotted");
+            }
+        }
+        else
+        {
+            llOwnerSay("❓ PATHFINDING: Unknown path_update type: " + (string)type);
         }
     }
     

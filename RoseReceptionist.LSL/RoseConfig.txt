@@ -18,6 +18,10 @@ WANDER_SENSOR_RANGE=50
 WANDER_SCAN_INTERVAL=5
 HOME_POSITION=<128, 128, 25>
 
+# Debug Mode - Set to TRUE to enable detailed pathfinding diagnostics
+# When enabled, outputs path_update events and navigation state changes
+DEBUG_MODE=FALSE
+
 # Shift and Reporting Configuration
 SHIFT_START_TIME=09:00
 SHIFT_END_TIME=17:00
