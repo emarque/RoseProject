@@ -28,6 +28,10 @@ DOOR_DETECTION_ENABLED=TRUE
 # Name pattern for doors (case-insensitive, partial match)
 DOOR_NAME_PATTERN=door
 
+# Parcel Boundary
+# Keep character within the current parcel (prevents wandering to other parcels)
+STAY_IN_PARCEL=TRUE
+
 # Shift and Reporting Configuration
 SHIFT_START_TIME=09:00
 SHIFT_END_TIME=17:00

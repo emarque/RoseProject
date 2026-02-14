@@ -20,6 +20,7 @@ integer LINK_ACTIVITY_UPDATE = 2001;
 float MOVEMENT_SPEED = 0.5;  // meters per second
 integer NAVIGATION_TIMEOUT = 60; // seconds
 float WAYPOINT_POSITION_TOLERANCE = 1.0; // meters
+integer STAY_IN_PARCEL = TRUE;  // Prevent character from leaving parcel
 
 // Door blocking detection
 integer DOOR_DETECTION_ENABLED = TRUE;
@@ -871,11 +872,38 @@ moveToNextWaypoint()
     current_target_pos = llList2Vector(waypoint_configs, current_waypoint_index * 3 + 1);
     current_target_key = NULL_KEY; // No prim keys, using positions only
     
+    // Check if target is outside parcel boundary
+    if (STAY_IN_PARCEL)
+    {
+        list parcel_details = llGetParcelDetails(current_target_pos, [PARCEL_DETAILS_OWNER]);
+        list current_parcel = llGetParcelDetails(llGetPos(), [PARCEL_DETAILS_OWNER]);
+        
+        if (llList2Key(parcel_details, 0) != llList2Key(current_parcel, 0))
+        {
+            // Target is in different parcel, skip this waypoint
+            current_waypoint_index = (current_waypoint_index + 1) % (llGetListLength(waypoint_configs) / 3);
+            moveToNextWaypoint();
+            return;
+        }
+    }
+    
     // Calculate movement parameters for keyframed motion
     vector start_pos = llGetPos();
     vector offset = current_target_pos - start_pos;
     float distance = llVecMag(offset);
     float time_to_travel = distance / MOVEMENT_SPEED;
+    
+    // Enforce minimum time for keyframed motion
+    if (time_to_travel < 0.14)
+    {
+        time_to_travel = 0.14;
+    }
+    
+    // Calculate rotation to face direction of travel (2-axis only, no diagonal lean)
+    vector direction = llVecNorm(offset);
+    float angle = llAtan2(direction.y, direction.x);  // Horizontal angle only
+    rotation facing = llEuler2Rot(<0, 0, angle - PI_BY_TWO>);  // Z-axis rotation only
+    llSetRot(facing);
     
     // Start a random walk animation before navigating
     startWalkAnimation();
@@ -887,6 +915,9 @@ moveToNextWaypoint()
     // Set up the motion - for KFM_TRANSLATION mode: [position_vector, time, ...]
     llSetKeyframedMotion([offset, time_to_travel], 
                          [KFM_MODE, KFM_FORWARD, KFM_DATA, KFM_TRANSLATION]);
+    
+    // Start the motion
+    llSetKeyframedMotion([], [KFM_COMMAND, KFM_CMD_PLAY]);
     
     is_navigating = TRUE;
     navigation_start_time = llGetUnixTime();
@@ -989,6 +1020,17 @@ default
                             else if (configKey == "DOOR_NAME_PATTERN")
                             {
                                 DOOR_NAME_PATTERN = value;
+                            }
+                            else if (configKey == "STAY_IN_PARCEL")
+                            {
+                                if (llToUpper(value) == "TRUE" || value == "1")
+                                {
+                                    STAY_IN_PARCEL = TRUE;
+                                }
+                                else
+                                {
+                                    STAY_IN_PARCEL = FALSE;
+                                }
                             }
                         }
                     }

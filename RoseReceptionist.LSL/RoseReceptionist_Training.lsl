@@ -407,7 +407,8 @@ outputWaypointConfig()
     string json = generateWaypointJSON();
     string output = "WAYPOINT" + (string)waypoint_counter + "=" + (string)current_tap_position + "|" + json;
     
-    llOwnerSay(output);
+    // Add newline before output for easier copy/paste to notecard
+    llOwnerSay("\n" + output);
     
     waypoint_counter++;
     resetWaypointData();
@@ -549,8 +550,8 @@ default
         
         if (training_active && toucher == training_user && training_state == "ACTIVE")
         {
-            // Capture position of Rose (not toucher)
-            current_tap_position = llGetPos();
+            // Capture position of toucher (not character)
+            current_tap_position = llDetectedPos(0);
             
             // Show waypoint type menu
             showWaypointTypeMenu();
