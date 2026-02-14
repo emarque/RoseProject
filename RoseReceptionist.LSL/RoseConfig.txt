@@ -18,6 +18,20 @@ WANDER_SENSOR_RANGE=50
 WANDER_SCAN_INTERVAL=5
 HOME_POSITION=<128, 128, 25>
 
+# Navigation Configuration
+# Movement speed in meters per second
+MOVEMENT_SPEED=0.5
+
+# Door Blocking Detection
+# Enable to check for closed doors blocking waypoints
+DOOR_DETECTION_ENABLED=TRUE
+# Name pattern for doors (case-insensitive, partial match)
+DOOR_NAME_PATTERN=door
+
+# Parcel Boundary
+# Keep character within the current parcel (prevents wandering to other parcels)
+STAY_IN_PARCEL=TRUE
+
 # Shift and Reporting Configuration
 SHIFT_START_TIME=09:00
 SHIFT_END_TIME=17:00
@@ -30,13 +44,15 @@ CHAT_RANGE=20
 # Receptionist Name (what she responds to in chat)
 RECEPTIONIST_NAME=Rose
 
-[AvailableAnimations]
-wave
-offer
-think
-typing
-watering
-reaching
+# Note: Animations are now discovered automatically from inventory
+# Any animation in inventory starting with "anim " (with space) will be categorized:
+#   - "anim walk [desc]" = walk animations (for navigation)
+#   - "anim stand [desc]" = stand animations
+#   - "anim sit [desc]" = sit animations
+#   - "anim dance [desc]" = dance animations
+#   - "anim turnleft [desc]" = turn left animations
+#   - "anim turnright [desc]" = turn right animations
+#   - Other "anim [tag]" = linger animations (for waypoint activities)
 
 [AvailableAttachables]
 Clipboard

@@ -56,7 +56,7 @@ playAnimation(string animation_name)
     // Check if animation exists in inventory
     if (llGetInventoryType(anim_to_play) == INVENTORY_ANIMATION)
     {
-        llStartAnimation(anim_to_play);
+        llStartObjectAnimation(anim_to_play);
         current_animation = anim_to_play;
         
         // Set timer to stop animation after a few seconds
@@ -72,7 +72,7 @@ stopCurrentAnimation()
 {
     if (current_animation != "" && current_animation != ANIM_IDLE)
     {
-        llStopAnimation(current_animation);
+        llStopObjectAnimation(current_animation);
         current_animation = "";
     }
 }

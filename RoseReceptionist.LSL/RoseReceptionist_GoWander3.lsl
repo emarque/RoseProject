@@ -16,10 +16,15 @@ string WAYPOINT_PREFIX = "Waypoint";
 integer LINK_WANDERING_STATE = 2000;
 integer LINK_ACTIVITY_UPDATE = 2001;
 
-// Navigation
-float CHARACTER_SPEED = 0.5;
+// Navigation - Using keyframed motion instead of pathfinding
+float MOVEMENT_SPEED = 0.5;  // meters per second
 integer NAVIGATION_TIMEOUT = 60; // seconds
-float WAYPOINT_POSITION_TOLERANCE = 0.1; // meters
+float WAYPOINT_POSITION_TOLERANCE = 1.0; // meters
+integer STAY_IN_PARCEL = TRUE;  // Prevent character from leaving parcel
+
+// Door blocking detection
+integer DOOR_DETECTION_ENABLED = TRUE;
+string DOOR_NAME_PATTERN = "door";  // Case-insensitive partial match
 
 // Shift times (from config)
 string SHIFT_START_TIME = "09:00";
@@ -37,10 +42,18 @@ integer waypointConfigLine = 0;
 string WAYPOINT_CONFIG_NOTECARD = "[WPP]WaypointConfig";
 list waypoint_configs = []; // [wp_num, wp_pos, json_config, ...]
 
-// Available animations and attachables from RoseConfig
-list available_animations = [];
+// Animation lists discovered from inventory
+list available_walk_animations = [];    // "anim walk" animations for navigation
+list available_stand_animations = [];   // "anim stand" animations
+list available_sit_animations = [];     // "anim sit" animations
+list available_dance_animations = [];   // "anim dance" animations
+list available_turnleft_animations = []; // "anim turnleft" animations
+list available_turnright_animations = []; // "anim turnright" animations
+list available_linger_animations = [];  // Other "anim [tag]" for linger tasks
+
+// Attachables from RoseConfig
 list available_attachables = [];
-string current_section = "";
+integer in_attachables_section = FALSE;  // Flag for reading attachables section
 
 // ============================================================================
 // STATE VARIABLES
@@ -59,6 +72,9 @@ integer is_navigating = FALSE;
 integer wander_enabled = TRUE;
 integer is_in_shift = FALSE;
 integer last_report_day = -1; // Track last day report was generated
+
+// Walk animation state
+string current_walk_animation = "";  // Currently playing walk animation
 
 // Activity data
 string activity_type = "";
@@ -91,6 +107,109 @@ integer confirmation_channel = 0;
 // ============================================================================
 // UTILITY FUNCTIONS
 // ============================================================================
+
+// Scan inventory for animations and categorize by naming convention
+scanInventoryAnimations()
+{
+    // Clear all animation lists
+    available_walk_animations = [];
+    available_stand_animations = [];
+    available_sit_animations = [];
+    available_dance_animations = [];
+    available_turnleft_animations = [];
+    available_turnright_animations = [];
+    available_linger_animations = [];
+    
+    // Scan all animations in inventory
+    integer inv_count = llGetInventoryNumber(INVENTORY_ANIMATION);
+    integer i;
+    
+    for (i = 0; i < inv_count; i++)
+    {
+        string anim_name = llGetInventoryName(INVENTORY_ANIMATION, i);
+        
+        // Only process animations starting with "anim "
+        if (llSubStringIndex(anim_name, "anim ") == 0)
+        {
+            // Check the specific category - must match "anim [category] " or end after category
+            string after_anim = llGetSubString(anim_name, 5, -1); // Skip "anim "
+            
+            if (llSubStringIndex(after_anim, "walk ") == 0 || after_anim == "walk")
+            {
+                available_walk_animations += [anim_name];
+            }
+            else if (llSubStringIndex(after_anim, "stand ") == 0 || after_anim == "stand")
+            {
+                available_stand_animations += [anim_name];
+            }
+            else if (llSubStringIndex(after_anim, "sit ") == 0 || after_anim == "sit")
+            {
+                available_sit_animations += [anim_name];
+            }
+            else if (llSubStringIndex(after_anim, "dance ") == 0 || after_anim == "dance")
+            {
+                available_dance_animations += [anim_name];
+            }
+            else if (llSubStringIndex(after_anim, "turnleft ") == 0 || after_anim == "turnleft")
+            {
+                available_turnleft_animations += [anim_name];
+            }
+            else if (llSubStringIndex(after_anim, "turnright ") == 0 || after_anim == "turnright")
+            {
+                available_turnright_animations += [anim_name];
+            }
+            else
+            {
+                // Any other "anim [tag]" goes to linger animations
+                available_linger_animations += [anim_name];
+            }
+        }
+    }
+    
+    // Consolidated report
+    llOwnerSay("Animations: " + (string)llGetListLength(available_walk_animations) + " walk, " + 
+               (string)llGetListLength(available_linger_animations) + " linger");
+}
+
+// Start a random walk animation
+startWalkAnimation()
+{
+    // Stop any current walk animation first
+    stopWalkAnimation();
+    
+    // Check if we have walk animations available
+    if (llGetListLength(available_walk_animations) == 0)
+    {
+        // No walk animations configured, skip
+        return;
+    }
+    
+    // Pick a random walk animation from the list
+    integer anim_count = llGetListLength(available_walk_animations);
+    integer random_index = (integer)llFrand(anim_count);
+    string walk_anim = llList2String(available_walk_animations, random_index);
+    
+    // Check if animation exists in inventory
+    if (llGetInventoryType(walk_anim) == INVENTORY_ANIMATION)
+    {
+        llStartObjectAnimation(walk_anim);
+        current_walk_animation = walk_anim;
+    }
+    else
+    {
+        llOwnerSay("Walk anim not found: " + walk_anim);
+    }
+}
+
+// Stop the current walk animation
+stopWalkAnimation()
+{
+    if (current_walk_animation != "")
+    {
+        llStopObjectAnimation(current_walk_animation);
+        current_walk_animation = "";
+    }
+}
 
 // Parse JSON from prim description
 list parseWaypointJSON(string json)
@@ -247,8 +366,8 @@ showConfirmationDialog(key user, string action, string description, string data)
     confirmation_listener = llListen(confirmation_channel, "", user, "");
     
     llDialog(user, 
-        "⚠️ " + description + "\n\nAre you sure?",
-        ["✓ Yes", "✗ Cancel"],
+        description + "\n\nAre you sure?",
+        ["Yes", "Cancel"],
         confirmation_channel);
     
     llSetTimerEvent(30.0); // Auto-cancel after 30s
@@ -275,7 +394,8 @@ executeConfirmedAction(string action, string data)
         {
             if (is_navigating)
             {
-                llNavigateTo(llGetPos(), []);
+                llSetKeyframedMotion([], [KFM_COMMAND, KFM_CMD_STOP]);
+                stopWalkAnimation();
                 is_navigating = FALSE;
             }
             llSetTimerEvent(0.0);
@@ -384,7 +504,7 @@ sendActivityBatch()
          HTTP_BODY_MAXLENGTH, 16384],
         json);
     
-    llOwnerSay("📊 Sent activity batch: " + (string)(llGetListLength(pending_activities) / 4) + " activities");
+    llOwnerSay("Sent batch: " + (string)(llGetListLength(pending_activities) / 4) + " activities");
     
     pending_activities = [];
     tracked_activities = []; // Clear to prevent unbounded memory growth - activities are unique per batch
@@ -471,11 +591,11 @@ loadWaypointConfig()
         waypoint_configs = [];
         waypointConfigLine = 0;
         waypointConfigQuery = llGetNotecardLine(WAYPOINT_CONFIG_NOTECARD, waypointConfigLine);
-        llOwnerSay("📖 Loading waypoint configurations from " + WAYPOINT_CONFIG_NOTECARD + "...");
+        llOwnerSay("Loading waypoint config: " + WAYPOINT_CONFIG_NOTECARD);
     }
     else
     {
-        llOwnerSay("⚠️ No " + WAYPOINT_CONFIG_NOTECARD + " found. Using prim descriptions (legacy mode).");
+        llOwnerSay("No " + WAYPOINT_CONFIG_NOTECARD + " found");
         waypoint_configs = [];
     }
 }
@@ -509,25 +629,88 @@ string getWaypointConfig(integer waypoint_number)
 }
 
 // ============================================================================
-// NAVIGATION FUNCTIONS
+// DOOR BLOCKING DETECTION
 // ============================================================================
 
-createPathfindingCharacter()
+// Check if a waypoint is blocked by a closed door
+integer isWaypointBlocked(vector target_pos)
 {
-    // Updated character parameters per redesign requirements
-    // Smaller dimensions (radius 0.125, length 0.25) for tighter navigation
-    // AVOID_NONE for direct path navigation without obstacle avoidance
-    llCreateCharacter([
-        CHARACTER_TYPE, CHARACTER_TYPE_A,
-        CHARACTER_MAX_SPEED, 2.0,
-        CHARACTER_DESIRED_SPEED, 1.5,
-        CHARACTER_DESIRED_TURN_SPEED, 1.8,
-        CHARACTER_RADIUS, 0.125,
-        CHARACTER_LENGTH, 0.25,
-        CHARACTER_AVOIDANCE_MODE, AVOID_NONE
+    if (!DOOR_DETECTION_ENABLED) return FALSE;
+    
+    vector start_pos = llGetPos();
+    vector direction = target_pos - start_pos;
+    float distance = llVecMag(direction);
+    
+    // Cast a ray from current position to target to detect obstacles
+    list results = llCastRay(start_pos, target_pos, [
+        RC_REJECT_TYPES, RC_REJECT_AGENTS | RC_REJECT_LAND,
+        RC_MAX_HITS, 10,
+        RC_DATA_FLAGS, RC_GET_ROOT_KEY | RC_GET_LINK_NUM
     ]);
-    llOwnerSay("✅ Pathfinding character created");
+    
+    integer status = llList2Integer(results, -1);
+    if (status < 0) return FALSE;  // Ray cast failed or no hits
+    
+    integer num_hits = llList2Integer(results, -1);
+    if (num_hits == 0) return FALSE;  // No objects in the way
+    
+    // Check each detected object
+    integer i;
+    for (i = 0; i < num_hits; i++)
+    {
+        key hit_key = llList2Key(results, i * 2);
+        
+        // Get object name
+        list obj_details = llGetObjectDetails(hit_key, [OBJECT_NAME, OBJECT_ROT]);
+        string obj_name = llList2String(obj_details, 0);
+        
+        // Check if it matches door pattern (case-insensitive)
+        if (llSubStringIndex(llToLower(obj_name), llToLower(DOOR_NAME_PATTERN)) != -1)
+        {
+            // It's a door in the path - consider it blocking
+            return TRUE;
+        }
+    }
+    
+    return FALSE;
 }
+
+// Find next unblocked waypoint starting from current index
+integer findNextUnblockedWaypoint()
+{
+    integer num_waypoints = llGetListLength(waypoint_configs) / 3;
+    if (num_waypoints == 0) return -1;
+    
+    integer start_index = current_waypoint_index;
+    integer checked = 0;
+    
+    // Try up to all waypoints to find an unblocked one
+    while (checked < num_waypoints)
+    {
+        current_waypoint_index++;
+        if (current_waypoint_index >= num_waypoints)
+        {
+            current_waypoint_index = 0;
+        }
+        
+        vector test_pos = llList2Vector(waypoint_configs, current_waypoint_index * 3 + 1);
+        
+        if (!isWaypointBlocked(test_pos))
+        {
+            // Found an unblocked waypoint
+            return current_waypoint_index;
+        }
+        
+        checked++;
+    }
+    
+    // All waypoints are blocked
+    return -1;
+}
+
+// ============================================================================
+// NAVIGATION FUNCTIONS
+// ============================================================================
 
 initializeNavigation()
 {
@@ -540,7 +723,7 @@ initializeNavigation()
     }
     else
     {
-        llOwnerSay("❌ No waypoint configurations found. Please add [WPP]WaypointConfig notecard.");
+        llOwnerSay("No waypoint configs. Add " + WAYPOINT_CONFIG_NOTECARD);
     }
 }
 
@@ -667,27 +850,79 @@ moveToNextWaypoint()
     integer num_waypoints = llGetListLength(waypoint_configs) / 3;
     if (num_waypoints == 0)
     {
-        llOwnerSay("❌ No waypoint configurations available");
+        llOwnerSay("No waypoint configs available");
         llSetTimerEvent(30.0);
         return;
     }
     
-    current_waypoint_index++;
-    if (current_waypoint_index >= num_waypoints)
+    // Find next unblocked waypoint
+    integer found_index = findNextUnblockedWaypoint();
+    
+    if (found_index == -1)
     {
-        current_waypoint_index = 0;
+        llOwnerSay("All waypoints blocked, waiting...");
+        llSetTimerEvent(30.0);  // Try again in 30 seconds
+        return;
     }
+    
+    current_waypoint_index = found_index;
     
     // Use waypoint configs from notecard
     integer wpNumber = llList2Integer(waypoint_configs, current_waypoint_index * 3);
     current_target_pos = llList2Vector(waypoint_configs, current_waypoint_index * 3 + 1);
     current_target_key = NULL_KEY; // No prim keys, using positions only
     
-    llNavigateTo(current_target_pos, [FORCE_DIRECT_PATH, TRUE]);
+    // Check if target is outside parcel boundary
+    if (STAY_IN_PARCEL)
+    {
+        list parcel_details = llGetParcelDetails(current_target_pos, [PARCEL_DETAILS_OWNER]);
+        list current_parcel = llGetParcelDetails(llGetPos(), [PARCEL_DETAILS_OWNER]);
+        
+        if (llList2Key(parcel_details, 0) != llList2Key(current_parcel, 0))
+        {
+            // Target is in different parcel, skip this waypoint
+            current_waypoint_index = (current_waypoint_index + 1) % (llGetListLength(waypoint_configs) / 3);
+            moveToNextWaypoint();
+            return;
+        }
+    }
+    
+    // Calculate movement parameters for keyframed motion
+    vector start_pos = llGetPos();
+    vector offset = current_target_pos - start_pos;
+    float distance = llVecMag(offset);
+    float time_to_travel = distance / MOVEMENT_SPEED;
+    
+    // Enforce minimum time for keyframed motion
+    if (time_to_travel < 0.14)
+    {
+        time_to_travel = 0.14;
+    }
+    
+    // Calculate rotation to face direction of travel (2-axis only, no diagonal lean)
+    vector direction = llVecNorm(offset);
+    float angle = llAtan2(direction.y, direction.x);  // Horizontal angle only
+    rotation facing = llEuler2Rot(<0, 0, angle - PI_BY_TWO>);  // Z-axis rotation only
+    llSetRot(facing);
+    
+    // Start a random walk animation before navigating
+    startWalkAnimation();
+    
+    // Use keyframed motion to move to waypoint
+    // Stop any existing motion first
+    llSetKeyframedMotion([], [KFM_COMMAND, KFM_CMD_STOP]);
+    
+    // Set up the motion - for KFM_TRANSLATION mode: [position_vector, time, ...]
+    llSetKeyframedMotion([offset, time_to_travel], 
+                         [KFM_MODE, KFM_FORWARD, KFM_DATA, KFM_TRANSLATION]);
+    
+    // Start the motion
+    llSetKeyframedMotion([], [KFM_COMMAND, KFM_CMD_PLAY]);
+    
     is_navigating = TRUE;
     navigation_start_time = llGetUnixTime();
     current_state = "WALKING";
-    llSetTimerEvent(1.0);
+    llSetTimerEvent(1.0);  // Check progress every second
 }
 
 // ============================================================================
@@ -699,6 +934,9 @@ default
     state_entry()
     {
         llOwnerSay("Rose Prim-Based Navigation System active");
+        
+        // Enable physics for keyframed motion
+        llSetStatus(STATUS_PHYSICS, TRUE);
         
         // Initialize batch timing
         last_batch_time = llGetUnixTime();
@@ -713,6 +951,8 @@ default
         else
         {
             llOwnerSay("No RoseConfig notecard found, using defaults");
+            // Still scan inventory for animations
+            scanInventoryAnimations();
             initializeNavigation();
         }
     }
@@ -727,40 +967,32 @@ default
                 data = llStringTrim(data, STRING_TRIM);
                 
                 // Check for section headers
-                if (data == "[AvailableAnimations]")
+                if (data == "[AvailableAttachables]")
                 {
-                    current_section = "animations";
-                }
-                else if (data == "[AvailableAttachables]")
-                {
-                    current_section = "attachables";
+                    in_attachables_section = TRUE;
                 }
                 // Skip empty lines and comments
                 else if (data != "" && llGetSubString(data, 0, 0) != "#")
                 {
-                    // If we're in a section, add to appropriate list
-                    if (current_section == "animations" && llSubStringIndex(data, "=") == -1)
-                    {
-                        available_animations += [data];
-                    }
-                    else if (current_section == "attachables" && llSubStringIndex(data, "=") == -1)
+                    // If we're in attachables section, add to list
+                    if (in_attachables_section && llSubStringIndex(data, "=") == -1)
                     {
                         available_attachables += [data];
                     }
                     else
                     {
-                        // Parse KEY=VALUE (resets current_section)
+                        // Parse KEY=VALUE (resets section flag)
                         integer equals = llSubStringIndex(data, "=");
                         if (equals != -1)
                         {
-                            current_section = "";
+                            in_attachables_section = FALSE;
                             string configKey = llStringTrim(llGetSubString(data, 0, equals - 1), STRING_TRIM);
                             string value = llStringTrim(llGetSubString(data, equals + 1, -1), STRING_TRIM);
                             
                             if (configKey == "WAYPOINT_PREFIX")
                             {
                                 WAYPOINT_PREFIX = value;
-                                llOwnerSay("✅ WAYPOINT_PREFIX: " + WAYPOINT_PREFIX);
+                                llOwnerSay("WAYPOINT_PREFIX: " + WAYPOINT_PREFIX);
                             }
                             else if (configKey == "API_ENDPOINT")
                             {
@@ -769,6 +1001,36 @@ default
                             else if (configKey == "API_KEY" || configKey == "SUBSCRIBER_KEY")
                             {
                                 API_KEY = value;
+                            }
+                            else if (configKey == "MOVEMENT_SPEED")
+                            {
+                                MOVEMENT_SPEED = (float)value;
+                            }
+                            else if (configKey == "DOOR_DETECTION_ENABLED")
+                            {
+                                if (llToUpper(value) == "TRUE" || value == "1")
+                                {
+                                    DOOR_DETECTION_ENABLED = TRUE;
+                                }
+                                else
+                                {
+                                    DOOR_DETECTION_ENABLED = FALSE;
+                                }
+                            }
+                            else if (configKey == "DOOR_NAME_PATTERN")
+                            {
+                                DOOR_NAME_PATTERN = value;
+                            }
+                            else if (configKey == "STAY_IN_PARCEL")
+                            {
+                                if (llToUpper(value) == "TRUE" || value == "1")
+                                {
+                                    STAY_IN_PARCEL = TRUE;
+                                }
+                                else
+                                {
+                                    STAY_IN_PARCEL = FALSE;
+                                }
                             }
                         }
                     }
@@ -780,16 +1042,17 @@ default
             }
             else
             {
-                // Finished reading RoseConfig, now load waypoint config
+                // Finished reading RoseConfig
                 llOwnerSay("Configuration loaded.");
-                if (llGetListLength(available_animations) > 0)
-                {
-                    llOwnerSay("✅ Loaded " + (string)llGetListLength(available_animations) + " animations");
-                }
                 if (llGetListLength(available_attachables) > 0)
                 {
-                    llOwnerSay("✅ Loaded " + (string)llGetListLength(available_attachables) + " attachables");
+                    llOwnerSay("Loaded " + (string)llGetListLength(available_attachables) + " attachables");
                 }
+                
+                // Scan inventory for animations using naming convention
+                scanInventoryAnimations();
+                
+                // Now load waypoint config
                 loadWaypointConfig();
                 
                 // If no waypoint config notecard, start navigation
@@ -834,7 +1097,7 @@ default
                             }
                             else
                             {
-                                llOwnerSay("⚠️ Malformed config line: " + configKey + " (missing '|' separator)");
+                                llOwnerSay("Malformed line: " + configKey);
                             }
                         }
                     }
@@ -848,7 +1111,7 @@ default
             {
                 // Finished reading waypoint config
                 integer configCount = llGetListLength(waypoint_configs) / 3;
-                llOwnerSay("✅ Loaded " + (string)configCount + " waypoint configurations");
+                llOwnerSay("Loaded " + (string)configCount + " waypoints");
                 initializeNavigation();
             }
         }
@@ -864,7 +1127,7 @@ default
             
             if (pending_action_user != NULL_KEY && pending_action != "")
             {
-                llRegionSayTo(pending_action_user, 0, "⏱️ Confirmation timed out.");
+                llRegionSayTo(pending_action_user, 0, "Confirmation timed out.");
             }
             
             pending_action = "";
@@ -888,7 +1151,12 @@ default
             // Check for navigation timeout
             if (llGetUnixTime() - navigation_start_time > NAVIGATION_TIMEOUT)
             {
-                llNavigateTo(llGetPos(), []); // Stop current navigation
+                llOwnerSay("NAV: Timeout after " + (string)NAVIGATION_TIMEOUT + "s, dist:" + 
+                           (string)llVecDist(llGetPos(), current_target_pos) + "m");
+                // Stop keyframed motion
+                llSetKeyframedMotion([], [KFM_COMMAND, KFM_CMD_STOP]);
+                stopWalkAnimation();
+                is_navigating = FALSE;
                 moveToNextWaypoint();
             }
             
@@ -896,9 +1164,11 @@ default
             vector current_pos = llGetPos();
             float distance = llVecDist(current_pos, current_target_pos);
             
-            if (distance < 1.0)
+            if (distance < WAYPOINT_POSITION_TOLERANCE)
             {
-                // Reached waypoint
+                // Reached waypoint - stop keyframed motion and walk animation
+                llSetKeyframedMotion([], [KFM_COMMAND, KFM_CMD_STOP]);
+                stopWalkAnimation();
                 is_navigating = FALSE;
                 processWaypoint(current_target_key, current_target_pos);
             }
@@ -933,18 +1203,6 @@ default
         }
     }
     
-    moving_end()
-    {
-        // Navigation completed
-        is_navigating = FALSE;
-        
-        if (current_state == "WALKING")
-        {
-            // We've arrived at the waypoint
-            processWaypoint(current_target_key, current_target_pos);
-        }
-    }
-    
     link_message(integer sender, integer num, string msg, key link_id)
     {
         if (num == LINK_WANDERING_STATE)
@@ -954,7 +1212,8 @@ default
                 // Stop wandering during interaction
                 if (is_navigating)
                 {
-                    llNavigateTo(llGetPos(), []);
+                    llSetKeyframedMotion([], [KFM_COMMAND, KFM_CMD_STOP]);
+                    stopWalkAnimation();
                     is_navigating = FALSE;
                 }
                 
@@ -1001,7 +1260,7 @@ default
             confirmation_listener = 0;
             llSetTimerEvent(0.0);
             
-            if (message == "✓ Yes")
+            if (message == "Yes")
             {
                 executeConfirmedAction(pending_action, pending_action_data);
             }
@@ -1050,11 +1309,11 @@ default
             {
                 if (error_429_count > 1)
                 {
-                    llOwnerSay("⚠️ API rate limiting active (HTTP 429) - " + (string)error_429_count + " requests throttled. This is normal during high activity.");
+                    llOwnerSay("API rate limit (429) - " + (string)error_429_count + " throttled");
                 }
                 else
                 {
-                    llOwnerSay("⚠️ API rate limiting active (HTTP 429). Activity logging will retry automatically.");
+                    llOwnerSay("API rate limit (429). Will retry.");
                 }
                 last_429_time = now;
                 error_429_count = 0;
@@ -1078,13 +1337,19 @@ default
         {
             if (llGetInventoryType("RoseConfig") == INVENTORY_NOTECARD)
             {
-                llOwnerSay("🔄 Configuration updated, reloading...");
+                llOwnerSay("Config updated, reloading...");
                 llResetScript();
             }
             else if (llGetInventoryType(WAYPOINT_CONFIG_NOTECARD) == INVENTORY_NOTECARD)
             {
-                llOwnerSay("🔄 Waypoint configuration updated, reloading...");
+                llOwnerSay("Waypoint config updated, reloading...");
                 llResetScript();
+            }
+            else
+            {
+                // Rescan animations when inventory changes
+                llOwnerSay("Inventory changed, rescanning...");
+                scanInventoryAnimations();
             }
         }
     }

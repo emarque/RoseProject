@@ -11,6 +11,8 @@ string WAYPOINT_PREFIX = "Waypoint";
 // Link messages
 integer LINK_TRAINING_START = 3000;
 integer LINK_TRAINING_COMPLETE = 3001;
+integer LINK_TRAINING_ACTIVE = 3002;  // Notify other scripts training is active
+integer LINK_TRAINING_CANCEL = 3003;  // Notify other scripts training cancelled
 
 // ============================================================================
 // STATE VARIABLES
@@ -36,10 +38,12 @@ list wp_attachments = [];
 list OWNER_UUIDS = [];
 string RECEPTIONIST_NAME = "Rose";
 
-// Available animations and attachables from RoseConfig
-list available_animations = [];
+// Animation lists discovered from inventory
+list available_linger_animations = [];  // "anim [tag]" for linger tasks (excluding special categories)
+
+// Attachables from RoseConfig
 list available_attachables = [];
-string current_section = "";
+integer in_attachables_section = FALSE;  // Flag for reading attachables section
 
 // Dialog channels and listeners
 integer dialog_channel = 0;
@@ -61,6 +65,50 @@ integer notecardLine = 0;
 // ============================================================================
 // UTILITY FUNCTIONS
 // ============================================================================
+
+// Scan inventory for animations and get linger animations
+scanInventoryAnimations()
+{
+    // Clear animation list
+    available_linger_animations = [];
+    
+    // Scan all animations in inventory
+    integer inv_count = llGetInventoryNumber(INVENTORY_ANIMATION);
+    integer i;
+    
+    for (i = 0; i < inv_count; i++)
+    {
+        string anim_name = llGetInventoryName(INVENTORY_ANIMATION, i);
+        
+        // Only process animations starting with "anim "
+        if (llSubStringIndex(anim_name, "anim ") == 0)
+        {
+            // Check if it's NOT one of the special categories
+            string after_anim = llGetSubString(anim_name, 5, -1); // Skip "anim "
+            
+            integer is_special = (
+                llSubStringIndex(after_anim, "walk ") == 0 || after_anim == "walk" ||
+                llSubStringIndex(after_anim, "stand ") == 0 || after_anim == "stand" ||
+                llSubStringIndex(after_anim, "sit ") == 0 || after_anim == "sit" ||
+                llSubStringIndex(after_anim, "dance ") == 0 || after_anim == "dance" ||
+                llSubStringIndex(after_anim, "turnleft ") == 0 || after_anim == "turnleft" ||
+                llSubStringIndex(after_anim, "turnright ") == 0 || after_anim == "turnright"
+            );
+            
+            if (!is_special)
+            {
+                // Any other "anim [tag]" is available for linger tasks
+                available_linger_animations += [anim_name];
+            }
+        }
+    }
+    
+    // Report what was found
+    if (llGetListLength(available_linger_animations) > 0)
+    {
+        llOwnerSay("🎭 Discovered " + (string)llGetListLength(available_linger_animations) + " linger animations");
+    }
+}
 
 // Check if user is authorized for training
 integer isAuthorizedTrainer(key user)
@@ -214,9 +262,12 @@ startTraining(key user, string userName)
     waypoint_counter = 0;
     training_state = "ACTIVE";
     
+    // Notify other scripts that training is active
+    llMessageLinked(LINK_SET, LINK_TRAINING_ACTIVE, (string)user, user);
+    
     llOwnerSay("🎓 Training Mode activated by " + userName);
     llRegionSayTo(user, 0, "Tap me at each waypoint location to configure");
-    llSetTimerEvent(300.0); // 5-minute timeout
+    llSetTimerEvent(30.0); // 30-second timeout for each waypoint
 }
 
 showWaypointTypeMenu()
@@ -299,7 +350,7 @@ showAnimationMenu()
 {
     clearListeners();
     
-    if (llGetListLength(available_animations) == 0)
+    if (llGetListLength(available_linger_animations) == 0)
     {
         // Skip animation selection
         wp_animation = "";
@@ -320,7 +371,7 @@ showAnimationMenu()
     string message = "🎭 Waypoint " + (string)waypoint_counter + 
                      "\n\nSelect animation:";
     
-    list buttons = available_animations + ["None"];
+    list buttons = available_linger_animations + ["None"];
     llDialog(training_user, message, buttons, dialog_channel);
     
     training_state = "ANIMATION";
@@ -356,13 +407,14 @@ outputWaypointConfig()
     string json = generateWaypointJSON();
     string output = "WAYPOINT" + (string)waypoint_counter + "=" + (string)current_tap_position + "|" + json;
     
-    llOwnerSay(output);
+    // Add newline before output for easier copy/paste to notecard
+    llOwnerSay("\n" + output);
     
     waypoint_counter++;
     resetWaypointData();
     training_state = "ACTIVE";
     llRegionSayTo(training_user, 0, "✓ Waypoint " + (string)(waypoint_counter - 1) + " configured. Tap me at next location or say 'done'.");
-    llSetTimerEvent(300.0); // Back to 5-minute timeout
+    llSetTimerEvent(30.0); // 30-second timeout
 }
 
 completeTraining()
@@ -374,6 +426,9 @@ completeTraining()
     
     llRegionSayTo(training_user, 0, "✅ Training complete! " + (string)waypoint_counter + " waypoints configured.");
     llOwnerSay("📝 Training complete. Copy config above and paste into [WPP]WaypointConfig notecard");
+    
+    // Notify other scripts that training is complete
+    llMessageLinked(LINK_SET, LINK_TRAINING_COMPLETE, "", NULL_KEY);
     
     training_user = NULL_KEY;
     training_user_name = "";
@@ -389,6 +444,9 @@ cancelTraining()
     {
         llRegionSayTo(training_user, 0, "❌ Training cancelled.");
     }
+    
+    // Notify other scripts that training is cancelled
+    llMessageLinked(LINK_SET, LINK_TRAINING_CANCEL, "", NULL_KEY);
     
     training_state = "IDLE";
     training_active = FALSE;
@@ -414,6 +472,11 @@ default
             notecardLine = 0;
             notecardQuery = llGetNotecardLine("RoseConfig", notecardLine);
         }
+        else
+        {
+            // No config file, scan animations now
+            scanInventoryAnimations();
+        }
     }
     
     dataserver(key query_id, string data)
@@ -425,33 +488,25 @@ default
                 data = llStringTrim(data, STRING_TRIM);
                 
                 // Check for section headers
-                if (data == "[AvailableAnimations]")
+                if (data == "[AvailableAttachables]")
                 {
-                    current_section = "animations";
-                }
-                else if (data == "[AvailableAttachables]")
-                {
-                    current_section = "attachables";
+                    in_attachables_section = TRUE;
                 }
                 // Skip empty lines and comments
                 else if (data != "" && llGetSubString(data, 0, 0) != "#")
                 {
-                    // If we're in a section, add to appropriate list
-                    if (current_section == "animations" && llSubStringIndex(data, "=") == -1)
-                    {
-                        available_animations += [data];
-                    }
-                    else if (current_section == "attachables" && llSubStringIndex(data, "=") == -1)
+                    // If we're in attachables section, add to list
+                    if (in_attachables_section && llSubStringIndex(data, "=") == -1)
                     {
                         available_attachables += [data];
                     }
                     else
                     {
-                        // Parse KEY=VALUE (resets current_section)
+                        // Parse KEY=VALUE (resets section flag)
                         integer equals = llSubStringIndex(data, "=");
                         if (equals != -1)
                         {
-                            current_section = "";
+                            in_attachables_section = FALSE;
                             string configKey = llStringTrim(llGetSubString(data, 0, equals - 1), STRING_TRIM);
                             string value = llStringTrim(llGetSubString(data, equals + 1, -1), STRING_TRIM);
                             
@@ -478,14 +533,13 @@ default
             else
             {
                 // Finished reading notecard
-                if (llGetListLength(available_animations) > 0)
-                {
-                    llOwnerSay("✅ Loaded " + (string)llGetListLength(available_animations) + " animations");
-                }
                 if (llGetListLength(available_attachables) > 0)
                 {
                     llOwnerSay("✅ Loaded " + (string)llGetListLength(available_attachables) + " attachables");
                 }
+                
+                // Scan inventory for animations using naming convention
+                scanInventoryAnimations();
             }
         }
     }
@@ -496,8 +550,8 @@ default
         
         if (training_active && toucher == training_user && training_state == "ACTIVE")
         {
-            // Capture position of Rose (not toucher)
-            current_tap_position = llGetPos();
+            // Capture position of toucher (not character)
+            current_tap_position = llDetectedPos(0);
             
             // Show waypoint type menu
             showWaypointTypeMenu();
@@ -526,7 +580,7 @@ default
                 if (pending_action == "DONE_TRAINING")
                 {
                     training_state = "ACTIVE";
-                    llSetTimerEvent(300.0);
+                    llSetTimerEvent(30.0);
                 }
             }
             
@@ -757,7 +811,7 @@ default
             if (pending_action == "DONE_TRAINING" && training_state != "IDLE")
             {
                 training_state = "ACTIVE";
-                llSetTimerEvent(300.0);
+                llSetTimerEvent(30.0);
             }
             else
             {
@@ -791,6 +845,12 @@ default
             {
                 llOwnerSay("🔄 Configuration updated, reloading...");
                 llResetScript();
+            }
+            else
+            {
+                // Rescan animations when inventory changes
+                llOwnerSay("🔄 Inventory changed, rescanning animations...");
+                scanInventoryAnimations();
             }
         }
     }
