@@ -13,17 +13,20 @@ public class ChatController : ControllerBase
     private readonly ClaudeService _claudeService;
     private readonly PersonalityService _personalityService;
     private readonly ConversationContextService _conversationService;
+    private readonly MenuService _menuService;
     private readonly ILogger<ChatController> _logger;
 
     public ChatController(
         ClaudeService claudeService,
         PersonalityService personalityService,
         ConversationContextService conversationService,
+        MenuService menuService,
         ILogger<ChatController> logger)
     {
         _claudeService = claudeService;
         _personalityService = personalityService;
         _conversationService = conversationService;
+        _menuService = menuService;
         _logger = logger;
     }
 
@@ -52,7 +55,80 @@ public class ChatController : ControllerBase
                 });
             }
 
-            var response = await _claudeService.GetResponseAsync(
+            // Check if message is menu navigation
+            var menuResult = _menuService.NavigateMenu(request.Message, request.SessionId);
+            
+            if (menuResult.Type == MenuNavigationResultType.ShowOptions)
+            {
+                // User navigated into a menu category - show options
+                var response = menuResult.Message ?? "Here are your options:";
+                
+                await _conversationService.SaveConversationAsync(
+                    request.AvatarKey,
+                    request.AvatarName,
+                    accessEntry.Role.ToString(),
+                    request.Message,
+                    response,
+                    request.SessionId);
+
+                return Ok(new ChatResponse
+                {
+                    Response = response,
+                    ShouldNotifyOwners = false,
+                    SuggestedAnimation = "offer"
+                });
+            }
+            else if (menuResult.Type == MenuNavigationResultType.FinalItem)
+            {
+                // User selected a final item - trigger action
+                var response = menuResult.Message ?? "*smiles* Coming right up!";
+                
+                await _conversationService.SaveConversationAsync(
+                    request.AvatarKey,
+                    request.AvatarName,
+                    accessEntry.Role.ToString(),
+                    request.Message,
+                    response,
+                    request.SessionId);
+
+                return Ok(new ChatResponse
+                {
+                    Response = response,
+                    ShouldNotifyOwners = false,
+                    SuggestedAnimation = "offer",
+                    Actions = new List<ChatAction>
+                    {
+                        new ChatAction
+                        {
+                            Type = "give",
+                            Target = menuResult.SelectedItem ?? ""
+                        }
+                    }
+                });
+            }
+            else if (menuResult.Type == MenuNavigationResultType.Cancelled)
+            {
+                // User cancelled menu navigation
+                var response = menuResult.Message ?? "No problem!";
+                
+                await _conversationService.SaveConversationAsync(
+                    request.AvatarKey,
+                    request.AvatarName,
+                    accessEntry.Role.ToString(),
+                    request.Message,
+                    response,
+                    request.SessionId);
+
+                return Ok(new ChatResponse
+                {
+                    Response = response,
+                    ShouldNotifyOwners = false,
+                    SuggestedAnimation = ""
+                });
+            }
+
+            // Not a menu navigation - proceed with normal AI chat
+            var aiResponse = await _claudeService.GetResponseAsync(
                 request.Message,
                 request.AvatarKey,
                 request.AvatarName,
@@ -69,11 +145,11 @@ public class ChatController : ControllerBase
                 request.AvatarName,
                 accessEntry.Role.ToString(),
                 request.Message,
-                response,
+                aiResponse,
                 request.SessionId);
 
             // Parse actions from response
-            var (cleanResponse, actions) = ParseActionsFromResponse(response);
+            var (cleanResponse, actions) = ParseActionsFromResponse(aiResponse);
             var suggestedAnimation = DetermineSuggestedAnimation(cleanResponse, accessEntry.Role);
 
             return Ok(new ChatResponse
