@@ -555,7 +555,7 @@ parseAndExecuteActions(string json)
     integer actionsStart = llSubStringIndex(json, "\"actions\":");
     if (actionsStart == -1) return;  // No actions
     
-    // Check if it's null
+    // Check if it's null - skip past "\"actions\":" (10 chars) to check value
     string afterActions = llGetSubString(json, actionsStart + 10, actionsStart + 14);
     if (afterActions == "null") return;
     
