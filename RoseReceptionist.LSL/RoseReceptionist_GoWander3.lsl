@@ -801,6 +801,9 @@ processWaypoint(key wpKey, vector wpPos)
     activity_animation = llList2String(wpData, 4);
     string attachments_json = llList2String(wpData, 5);
     
+    // Notify Main script of current activity
+    llMessageLinked(LINK_SET, LINK_ACTIVITY_UPDATE, current_activity_name, NULL_KEY);
+    
     // Queue activity for batch logging
     queueActivity(current_activity_name, activity_type, activity_duration);
     activity_start_time = llGetUnixTime();
