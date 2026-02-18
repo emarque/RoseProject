@@ -42,7 +42,7 @@ public class ActivityService
     /// <summary>
     /// Gets recent activities from the last specified number of hours
     /// </summary>
-    public async Task<List<ActivityLog>> GetRecentActivitiesAsync(int hours = 2)
+    public async Task<List<ActivityLog>> GetRecentActivitiesAsync(int hours = 2, int maxActivities = 5)
     {
         try
         {
@@ -51,7 +51,7 @@ public class ActivityService
             var recentActivities = await _context.ActivityLogs
                 .Where(a => a.StartTime >= cutoffTime)
                 .OrderByDescending(a => a.StartTime)
-                .Take(10) // Limit to 10 most recent activities
+                .Take(maxActivities)
                 .ToListAsync();
 
             return recentActivities;
@@ -88,7 +88,6 @@ public class ActivityService
         }
 
         var descriptions = activities
-            .Take(5) // Only include top 5 for brevity
             .Select(a => GetActivityDescription(a))
             .Where(d => !string.IsNullOrEmpty(d));
 
@@ -97,15 +96,41 @@ public class ActivityService
 
     private string GetActivityDescription(ActivityLog activity)
     {
+        // Sanitize activity name to prevent injection or formatting issues
+        var sanitizedName = SanitizeActivityName(activity.ActivityName);
+        
         // Map activity types to natural language descriptions
         var description = activity.ActivityType.ToLower() switch
         {
-            "transient" => $"moving to {activity.ActivityName}",
-            "linger" => $"doing {activity.ActivityName}",
-            "sit" => $"sitting at {activity.ActivityName}",
-            _ => activity.ActivityName
+            "transient" => $"moving to {sanitizedName}",
+            "linger" => $"doing {sanitizedName}",
+            "sit" => $"sitting at {sanitizedName}",
+            _ => sanitizedName
         };
 
         return description;
+    }
+
+    private string SanitizeActivityName(string activityName)
+    {
+        if (string.IsNullOrWhiteSpace(activityName))
+        {
+            return "unknown activity";
+        }
+
+        // Remove any potential problematic characters and limit length
+        var sanitized = activityName
+            .Replace("\n", " ")
+            .Replace("\r", " ")
+            .Replace("\t", " ")
+            .Trim();
+
+        // Limit length to prevent overly long activity names
+        if (sanitized.Length > 100)
+        {
+            sanitized = sanitized.Substring(0, 100) + "...";
+        }
+
+        return sanitized;
     }
 }
