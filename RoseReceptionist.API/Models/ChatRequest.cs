@@ -8,6 +8,10 @@ public class ChatRequest
     public string Location { get; set; } = string.Empty;
     public Guid SessionId { get; set; }
     public string? Transcript { get; set; } = null;
+    
+    // Context flags for chatbot
+    public string? CurrentActivity { get; set; }  // What Rose is currently doing
+    public List<string>? AvailableActions { get; set; }  // Available menu actions (e.g., drinks, services)
 }
 
 public class ArrivalRequest

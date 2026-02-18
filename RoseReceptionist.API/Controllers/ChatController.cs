@@ -60,7 +60,9 @@ public class ChatController : ControllerBase
                 accessEntry.PersonalityNotes,
                 accessEntry.FavoriteDrink,
                 request.SessionId,
-                request.Transcript);
+                request.Transcript,
+                request.CurrentActivity,
+                request.AvailableActions);
 
             await _conversationService.SaveConversationAsync(
                 request.AvatarKey,
@@ -70,13 +72,16 @@ public class ChatController : ControllerBase
                 response,
                 request.SessionId);
 
-            var suggestedAnimation = DetermineSuggestedAnimation(response, accessEntry.Role);
+            // Parse actions from response
+            var (cleanResponse, actions) = ParseActionsFromResponse(response);
+            var suggestedAnimation = DetermineSuggestedAnimation(cleanResponse, accessEntry.Role);
 
             return Ok(new ChatResponse
             {
-                Response = response,
+                Response = cleanResponse,
                 ShouldNotifyOwners = false,
-                SuggestedAnimation = suggestedAnimation
+                SuggestedAnimation = suggestedAnimation,
+                Actions = actions
             });
         }
         catch (Exception ex)
@@ -172,5 +177,80 @@ public class ChatController : ControllerBase
         }
 
         return "";
+    }
+
+    private (string cleanResponse, List<ChatAction>? actions) ParseActionsFromResponse(string response)
+    {
+        var actions = new List<ChatAction>();
+        var cleanResponse = response;
+
+        // Look for action tags in format: [ACTION:type=give,item=Coffee]
+        var actionPattern = @"\[ACTION:([^\]]+)\]";
+        var matches = System.Text.RegularExpressions.Regex.Matches(response, actionPattern);
+
+        foreach (System.Text.RegularExpressions.Match match in matches)
+        {
+            var actionString = match.Groups[1].Value;
+            var action = ParseActionString(actionString);
+            if (action != null)
+            {
+                actions.Add(action);
+            }
+
+            // Remove the action tag from the response
+            cleanResponse = cleanResponse.Replace(match.Value, "").Trim();
+        }
+
+        return (cleanResponse, actions.Count > 0 ? actions : null);
+    }
+
+    private ChatAction? ParseActionString(string actionString)
+    {
+        try
+        {
+            var parts = actionString.Split(',');
+            var parameters = new Dictionary<string, string>();
+            string? actionType = null;
+            string? target = null;
+
+            foreach (var part in parts)
+            {
+                var keyValue = part.Split('=');
+                if (keyValue.Length == 2)
+                {
+                    var key = keyValue[0].Trim();
+                    var value = keyValue[1].Trim();
+
+                    if (key == "type")
+                    {
+                        actionType = value;
+                    }
+                    else if (key == "item" || key == "location" || key == "name")
+                    {
+                        target = value;
+                    }
+                    else
+                    {
+                        parameters[key] = value;
+                    }
+                }
+            }
+
+            if (actionType != null)
+            {
+                return new ChatAction
+                {
+                    Type = actionType,
+                    Target = target ?? "",
+                    Parameters = parameters.Count > 0 ? parameters : null
+                };
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to parse action string: {ActionString}", actionString);
+        }
+
+        return null;
     }
 }
