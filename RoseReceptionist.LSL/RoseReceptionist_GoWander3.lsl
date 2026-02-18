@@ -31,6 +31,10 @@ string SHIFT_START_TIME = "09:00";
 string SHIFT_END_TIME = "17:00";
 string DAILY_REPORT_TIME = "17:05";
 
+// Home position configuration
+integer HOME_WAYPOINT = -1;  // Waypoint number to use as home (-1 = disabled)
+integer HOME_DURATION_MINUTES = 0;  // Minutes to spend at home before starting activities
+
 // Notecard reading
 key notecardQuery;
 integer notecardLine = 0;
@@ -73,6 +77,11 @@ integer is_navigating = FALSE;
 integer wander_enabled = TRUE;
 integer is_in_shift = FALSE;
 integer last_report_day = -1; // Track last day report was generated
+
+// Home position state
+integer at_home = FALSE;  // Currently at home position
+integer home_start_time = 0;  // When we arrived at home
+integer loop_started = FALSE;  // Whether we've started the wander loop
 
 // Walk animation state
 string current_walk_animation = "";  // Currently playing walk animation
@@ -629,6 +638,20 @@ string getWaypointConfig(integer waypoint_number)
     return "";
 }
 
+// Find the index of a waypoint by its number
+integer findWaypointIndexByNumber(integer waypoint_number)
+{
+    integer i;
+    for (i = 0; i < llGetListLength(waypoint_configs); i += 3)
+    {
+        if (llList2Integer(waypoint_configs, i) == waypoint_number)
+        {
+            return i / 3;  // Return the waypoint index
+        }
+    }
+    return -1;  // Not found
+}
+
 // ============================================================================
 // DOOR BLOCKING DETECTION
 // ============================================================================
@@ -778,6 +801,9 @@ processWaypoint(key wpKey, vector wpPos)
     activity_animation = llList2String(wpData, 4);
     string attachments_json = llList2String(wpData, 5);
     
+    // Notify Main script of current activity
+    llMessageLinked(LINK_SET, LINK_ACTIVITY_UPDATE, current_activity_name, NULL_KEY);
+    
     // Queue activity for batch logging
     queueActivity(current_activity_name, activity_type, activity_duration);
     activity_start_time = llGetUnixTime();
@@ -861,6 +887,48 @@ moveToNextWaypoint()
         return;
     }
     
+    // Home position logic
+    if (HOME_WAYPOINT >= 0 && !loop_started)
+    {
+        // First time or returning to home - go to home position
+        integer home_index = findWaypointIndexByNumber(HOME_WAYPOINT);
+        if (home_index == -1)
+        {
+            llOwnerSay("Home waypoint " + (string)HOME_WAYPOINT + " not found!");
+            // Continue with normal wandering
+        }
+        else
+        {
+            // Go to home position
+            current_waypoint_index = home_index;
+            at_home = TRUE;
+            home_start_time = llGetUnixTime();
+            loop_started = FALSE;  // Will stay at home first
+            
+            // Navigate to home, processWaypoint will handle the duration
+            navigateToCurrentWaypoint();
+            return;
+        }
+    }
+    
+    // Check if we should stay at home longer
+    if (at_home && HOME_DURATION_MINUTES > 0)
+    {
+        integer elapsed_minutes = (llGetUnixTime() - home_start_time) / 60;
+        if (elapsed_minutes < HOME_DURATION_MINUTES)
+        {
+            // Still need to stay at home
+            llSetTimerEvent(60.0);  // Check again in a minute
+            return;
+        }
+        else
+        {
+            // Time to start wandering
+            at_home = FALSE;
+            loop_started = TRUE;
+        }
+    }
+    
     // Find next unblocked waypoint
     integer found_index = findNextUnblockedWaypoint();
     
@@ -873,6 +941,27 @@ moveToNextWaypoint()
     
     current_waypoint_index = found_index;
     
+    // Check if we completed a full loop (back to waypoint 0 or home)
+    integer wpNumber = llList2Integer(waypoint_configs, current_waypoint_index * 3);
+    if (loop_started && wpNumber == 0 && HOME_WAYPOINT >= 0)
+    {
+        // Completed loop, return to home
+        loop_started = FALSE;
+        current_waypoint_index = findWaypointIndexByNumber(HOME_WAYPOINT);
+        if (current_waypoint_index == -1)
+        {
+            current_waypoint_index = 0;  // Fallback to waypoint 0
+        }
+        at_home = TRUE;
+        home_start_time = llGetUnixTime();
+    }
+    
+    navigateToCurrentWaypoint();
+}
+
+// Extracted navigation logic from moveToNextWaypoint
+navigateToCurrentWaypoint()
+{
     // Use waypoint configs from notecard
     integer wpNumber = llList2Integer(waypoint_configs, current_waypoint_index * 3);
     current_target_pos = llList2Vector(waypoint_configs, current_waypoint_index * 3 + 1);
@@ -1041,6 +1130,16 @@ default
                                 {
                                     STAY_IN_PARCEL = FALSE;
                                 }
+                            }
+                            else if (configKey == "HOME_WAYPOINT")
+                            {
+                                HOME_WAYPOINT = (integer)value;
+                                llOwnerSay("HOME_WAYPOINT: " + (string)HOME_WAYPOINT);
+                            }
+                            else if (configKey == "HOME_DURATION_MINUTES")
+                            {
+                                HOME_DURATION_MINUTES = (integer)value;
+                                llOwnerSay("HOME_DURATION_MINUTES: " + (string)HOME_DURATION_MINUTES);
                             }
                         }
                     }

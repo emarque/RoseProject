@@ -21,12 +21,18 @@ list OWNER_NAMES = [];
 integer GREETING_RANGE = 10;
 string RECEPTIONIST_NAME = "Rose";
 
+// Available menu items/actions (configurable)
+list AVAILABLE_ACTIONS = ["Coffee", "Tea", "Water", "Hot Chocolate", "Espresso"];
+string current_activity = "";  // Current activity from wander script
+
 // Link message numbers
 integer LINK_SENSOR_DETECTED = 1000;
 integer LINK_CHAT_MESSAGE = 1001;
 integer LINK_SPEAK = 1002;
 integer LINK_ANIMATION = 1003;
 integer LINK_HTTP_REQUEST = 1004;
+integer LINK_ACTIVITY_UPDATE = 2001;  // Activity name from wander script
+integer LINK_ACTION_EXECUTE = 2002;    // Execute action from chat response
 integer LINK_TRAINING_START = 3000;
 integer LINK_TRAINING_ACTIVE = 3002;  // Training mode is active
 integer LINK_TRAINING_COMPLETE = 3001;
@@ -288,6 +294,25 @@ sendChatRequest(string avatarKey, string avatarName, string message, string sess
         json += ",\"transcript\":\"" + escapeJson(transcript) + "\"";
     }
     
+    // Add current activity if available
+    if (current_activity != "")
+    {
+        json += ",\"currentActivity\":\"" + escapeJson(current_activity) + "\"";
+    }
+    
+    // Add available actions
+    if (llGetListLength(AVAILABLE_ACTIONS) > 0)
+    {
+        json += ",\"availableActions\":[";
+        integer i;
+        for (i = 0; i < llGetListLength(AVAILABLE_ACTIONS); i++)
+        {
+            if (i > 0) json += ",";
+            json += "\"" + llList2String(AVAILABLE_ACTIONS, i) + "\"";
+        }
+        json += "]";
+    }
+    
     json += "}";
     
     key http_request_id = llHTTPRequest(url,
@@ -494,6 +519,9 @@ handleSuccessResponse(string request_type, string request_data, string body)
         {
             llMessageLinked(LINK_SET, LINK_ANIMATION, animation, NULL_KEY);
         }
+        
+        // Parse and execute actions if present
+        parseAndExecuteActions(body);
     }
 }
 
@@ -518,6 +546,82 @@ string escapeJson(string str)
     str = llDumpList2String(llParseString2List(str, ["\""], []), "\\\"");
     str = llDumpList2String(llParseString2List(str, ["\n"], []), "\\n");
     return str;
+}
+
+parseAndExecuteActions(string json)
+{
+    // Look for actions array in JSON response
+    // Format: "actions":[{"type":"give","target":"Coffee","parameters":null}]
+    integer actionsStart = llSubStringIndex(json, "\"actions\":");
+    if (actionsStart == -1) return;  // No actions
+    
+    // Check if it's null - skip past "\"actions\":" (10 chars) to check value
+    string afterActions = llGetSubString(json, actionsStart + 10, actionsStart + 14);
+    if (afterActions == "null") return;
+    
+    // Find the array start
+    integer arrayStart = llSubStringIndex(llGetSubString(json, actionsStart, -1), "[");
+    if (arrayStart == -1) return;
+    arrayStart += actionsStart;
+    
+    // Find the array end
+    integer arrayEnd = llSubStringIndex(llGetSubString(json, arrayStart, -1), "]");
+    if (arrayEnd == -1) return;
+    
+    string actionsArray = llGetSubString(json, arrayStart + 1, arrayStart + arrayEnd - 1);
+    
+    // Parse each action in the array
+    // Simple parser - look for objects between {}
+    integer pos = 0;
+    while (TRUE)
+    {
+        integer objStart = llSubStringIndex(llGetSubString(actionsArray, pos, -1), "{");
+        if (objStart == -1) return;  // No more actions
+        objStart += pos;
+        
+        integer objEnd = llSubStringIndex(llGetSubString(actionsArray, objStart, -1), "}");
+        if (objEnd == -1) return;
+        objEnd += objStart;
+        
+        string actionObj = llGetSubString(actionsArray, objStart, objEnd);
+        
+        // Extract action type and target
+        string actionType = extractJsonString(actionObj, "type");
+        string actionTarget = extractJsonString(actionObj, "target");
+        
+        if (actionType != "")
+        {
+            executeAction(actionType, actionTarget);
+        }
+        
+        pos = objEnd + 1;
+        if (pos >= llStringLength(actionsArray)) return;
+    }
+}
+
+executeAction(string actionType, string actionTarget)
+{
+    // Send action to appropriate handler script
+    string actionMsg = actionType + "|" + actionTarget;
+    
+    if (actionType == "give")
+    {
+        // Give an item to the requester
+        llMessageLinked(LINK_SET, LINK_ACTION_EXECUTE, "GIVE:" + actionTarget, NULL_KEY);
+        llOwnerSay("Action: Give " + actionTarget);
+    }
+    else if (actionType == "navigate")
+    {
+        // Navigate to a location
+        llMessageLinked(LINK_SET, LINK_ACTION_EXECUTE, "NAVIGATE:" + actionTarget, NULL_KEY);
+        llOwnerSay("Action: Navigate to " + actionTarget);
+    }
+    else if (actionType == "gesture")
+    {
+        // Perform a gesture/animation
+        llMessageLinked(LINK_SET, LINK_ANIMATION, actionTarget, NULL_KEY);
+        llOwnerSay("Action: Gesture " + actionTarget);
+    }
 }
 
 handleErrorResponse(integer status, string request_type, string request_data, string body)
@@ -645,6 +749,21 @@ default
                         {
                             RECEPTIONIST_NAME = value;
                             llOwnerSay("✅ RECEPTIONIST_NAME: " + RECEPTIONIST_NAME);
+                        }
+                        else if (configKey == "AVAILABLE_ACTIONS")
+                        {
+                            // Parse comma-separated list of actions
+                            AVAILABLE_ACTIONS = llParseString2List(value, [","], []);
+                            // Trim whitespace from each item
+                            integer i;
+                            list trimmed = [];
+                            for (i = 0; i < llGetListLength(AVAILABLE_ACTIONS); i++)
+                            {
+                                string item = llStringTrim(llList2String(AVAILABLE_ACTIONS, i), STRING_TRIM);
+                                if (item != "") trimmed += [item];
+                            }
+                            AVAILABLE_ACTIONS = trimmed;
+                            llOwnerSay("✅ AVAILABLE_ACTIONS: " + llDumpList2String(AVAILABLE_ACTIONS, ", "));
                         }
                     }
                 }
@@ -945,6 +1064,11 @@ default
             }
             
             sendChatRequest(avatarKey, avatarName, message, sessionId, transcript);
+        }
+        else if (num == LINK_ACTIVITY_UPDATE)
+        {
+            // Activity update from wander script: msg format is "activity_name"
+            current_activity = msg;
         }
     }
     

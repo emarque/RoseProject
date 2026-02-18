@@ -5,6 +5,14 @@ public class ChatResponse
     public string Response { get; set; } = string.Empty;
     public bool ShouldNotifyOwners { get; set; }
     public string SuggestedAnimation { get; set; } = string.Empty;
+    public List<ChatAction>? Actions { get; set; }  // Actions for Rose to perform in-world
+}
+
+public class ChatAction
+{
+    public string Type { get; set; } = string.Empty;  // "give", "navigate", "gesture", "attach", etc.
+    public string Target { get; set; } = string.Empty;  // Item name, location, etc.
+    public Dictionary<string, string>? Parameters { get; set; }  // Additional parameters
 }
 
 public class ArrivalResponse

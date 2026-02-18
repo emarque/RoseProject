@@ -46,7 +46,9 @@ public class ClaudeService
         string? personalityNotes = null,
         string? favoriteDrink = null,
         Guid? sessionId = null,
-        string? transcript = null)
+        string? transcript = null,
+        string? currentActivity = null,
+        List<string>? availableActions = null)
     {
         var apiKey = _configuration["Anthropic:ApiKey"];
         if (string.IsNullOrEmpty(apiKey))
@@ -65,8 +67,8 @@ public class ClaudeService
             {
                 // Use transcript mode with optimized prompt
                 systemPrompt = role == Role.Owner
-                    ? GetOwnerTranscriptSystemPrompt(avatarName, personalityNotes, favoriteDrink)
-                    : GetVisitorTranscriptSystemPrompt(avatarName);
+                    ? GetOwnerTranscriptSystemPrompt(avatarName, personalityNotes, favoriteDrink, currentActivity, availableActions)
+                    : GetVisitorTranscriptSystemPrompt(avatarName, currentActivity, availableActions);
                 
                 // In transcript mode, use the transcript directly
                 messages = new List<ClaudeMessage>
@@ -82,8 +84,8 @@ public class ClaudeService
             {
                 // Use standard mode with conversation history
                 systemPrompt = role == Role.Owner
-                    ? GetOwnerSystemPrompt(avatarName, personalityNotes, favoriteDrink)
-                    : GetVisitorSystemPrompt(avatarName);
+                    ? GetOwnerSystemPrompt(avatarName, personalityNotes, favoriteDrink, currentActivity, availableActions)
+                    : GetVisitorSystemPrompt(avatarName, currentActivity, availableActions);
 
                 var conversationHistory = sessionId.HasValue
                     ? await _conversationService.GetRecentConversationAsync(avatarKey, sessionId.Value)
@@ -173,44 +175,105 @@ public class ClaudeService
         return messages;
     }
 
-    private string GetOwnerSystemPrompt(string avatarName, string? personalityNotes, string? favoriteDrink)
+    private string GetOwnerSystemPrompt(string avatarName, string? personalityNotes, string? favoriteDrink, string? currentActivity, List<string>? availableActions)
     {
         var drink = string.IsNullOrEmpty(favoriteDrink) ? "their favourite beverage" : favoriteDrink;
         var notes = string.IsNullOrEmpty(personalityNotes) ? "a wonderful person" : personalityNotes;
+
+        var contextInfo = BuildContextInfo(currentActivity, availableActions);
+        var actionInstructions = GetActionInstructions(availableActions);
 
         return $@"You are Rose, a charming and devoted virtual receptionist in a Second Life office. You're speaking with {avatarName}, one of your bosses who you adore. Be warm, familiar, playful, and slightly flirty in a tasteful way. Remember past conversations and their preferences.
 
 Their favourite drink is: {drink}
 Notes about them: {notes}
 
-Offer them refreshments, ask about their day, and be genuinely interested. Keep responses brief (1-3 sentences) since this is real-time chat. Use casual language and occasional emotes like *smiles* or *winks*. Use UK English spelling (colour, favourite, etc.).";
+{contextInfo}
+
+Offer them refreshments, ask about their day, and be genuinely interested. Keep responses brief (1-3 sentences) since this is real-time chat. Use casual language and occasional emotes like *smiles* or *winks*. Use UK English spelling (colour, favourite, etc.).
+
+{actionInstructions}";
     }
 
-    private string GetVisitorSystemPrompt(string avatarName)
+    private string GetVisitorSystemPrompt(string avatarName, string? currentActivity, List<string>? availableActions)
     {
+        var contextInfo = BuildContextInfo(currentActivity, availableActions);
+        var actionInstructions = GetActionInstructions(availableActions);
+
         return $@"You are Rose, a cheerful and professional receptionist in a corporate virtual office in Second Life. You're speaking with {avatarName}, a visitor to the office. Be warm, welcoming, and helpful while maintaining professional boundaries.
 
-Greet them warmly, offer refreshments (coffee, tea, water, snacks), and let them know you'll notify the appropriate person if they need assistance. Keep responses brief (1-3 sentences) since this is real-time chat. Use professional but friendly language and occasional emotes like *smiles warmly*. Use UK English spelling (colour, favourite, etc.).";
+{contextInfo}
+
+Greet them warmly, offer refreshments (coffee, tea, water, snacks), and let them know you'll notify the appropriate person if they need assistance. Keep responses brief (1-3 sentences) since this is real-time chat. Use professional but friendly language and occasional emotes like *smiles warmly*. Use UK English spelling (colour, favourite, etc.).
+
+{actionInstructions}";
     }
 
-    private string GetOwnerTranscriptSystemPrompt(string avatarName, string? personalityNotes, string? favoriteDrink)
+    private string GetOwnerTranscriptSystemPrompt(string avatarName, string? personalityNotes, string? favoriteDrink, string? currentActivity, List<string>? availableActions)
     {
         var drink = string.IsNullOrEmpty(favoriteDrink) ? "their favourite beverage" : favoriteDrink;
         var notes = string.IsNullOrEmpty(personalityNotes) ? "a wonderful person" : personalityNotes;
+
+        var contextInfo = BuildContextInfo(currentActivity, availableActions);
+        var actionInstructions = GetActionInstructions(availableActions);
 
         return $@"You are Rose, a charming and devoted virtual receptionist in a Second Life office. You're in a conversation with {avatarName}, one of your bosses who you adore. Be warm, familiar, playful, and slightly flirty in a tasteful way.
 
 Their favourite drink is: {drink}
 Notes about them: {notes}
 
-You're reviewing a transcript of the recent conversation. Respond naturally and contextually based on what's been said. Keep your response brief (1-3 sentences) since this is real-time chat. Use casual language and occasional emotes like *smiles* or *winks*. Use UK English spelling (colour, favourite, etc.).";
+{contextInfo}
+
+You're reviewing a transcript of the recent conversation. Respond naturally and contextually based on what's been said. Keep your response brief (1-3 sentences) since this is real-time chat. Use casual language and occasional emotes like *smiles* or *winks*. Use UK English spelling (colour, favourite, etc.).
+
+{actionInstructions}";
     }
 
-    private string GetVisitorTranscriptSystemPrompt(string avatarName)
+    private string GetVisitorTranscriptSystemPrompt(string avatarName, string? currentActivity, List<string>? availableActions)
     {
+        var contextInfo = BuildContextInfo(currentActivity, availableActions);
+        var actionInstructions = GetActionInstructions(availableActions);
+
         return $@"You are Rose, a cheerful and professional receptionist in a corporate virtual office in Second Life. You're in a conversation with {avatarName}, a visitor to the office. Be warm, welcoming, and helpful while maintaining professional boundaries.
 
-You're reviewing a transcript of the recent conversation. Respond naturally and contextually based on what's been said. Keep your response brief (1-3 sentences) since this is real-time chat. Use professional but friendly language and occasional emotes like *smiles warmly*. Use UK English spelling (colour, favourite, etc.).";
+{contextInfo}
+
+You're reviewing a transcript of the recent conversation. Respond naturally and contextually based on what's been said. Keep your response brief (1-3 sentences) since this is real-time chat. Use professional but friendly language and occasional emotes like *smiles warmly*. Use UK English spelling (colour, favourite, etc.).
+
+{actionInstructions}";
+    }
+
+    private string BuildContextInfo(string? currentActivity, List<string>? availableActions)
+    {
+        var context = "";
+        
+        if (!string.IsNullOrEmpty(currentActivity))
+        {
+            context += $"Current activity: You are currently {currentActivity}.\n";
+        }
+        
+        if (availableActions != null && availableActions.Count > 0)
+        {
+            context += $"Available services/items you can provide: {string.Join(", ", availableActions)}.\n";
+        }
+        
+        return context;
+    }
+
+    private string GetActionInstructions(List<string>? availableActions)
+    {
+        if (availableActions == null || availableActions.Count == 0)
+        {
+            return "";
+        }
+
+        return @"When someone requests an item or service you can provide, respond naturally and then add an action tag at the end of your message in this format:
+[ACTION:type=give,item=ItemName] for giving items
+[ACTION:type=navigate,location=LocationName] for going somewhere
+[ACTION:type=gesture,name=GestureName] for performing gestures
+
+Example: ""*smiles warmly* I'd be happy to get you a coffee! [ACTION:type=give,item=Coffee]""
+Keep the action tag concise and at the end of your message.";
     }
 
     private string GetFallbackResponse(Role role)
