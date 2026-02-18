@@ -252,12 +252,31 @@ public class MenuService
         };
         UpdateMenuContext(sessionId, context);
 
+        // Build appropriate message based on number of options
+        string message;
+        if (options.Count == 0)
+        {
+            message = "I'm sorry, there are no options available in this category.";
+        }
+        else if (options.Count == 1)
+        {
+            message = $"Sure! We have {options[0]} available.";
+        }
+        else if (options.Count == 2)
+        {
+            message = $"Sure! We have {options[0]} and {options[1]} available.";
+        }
+        else
+        {
+            message = $"Sure! We have {string.Join(", ", options.Take(options.Count - 1))} and {options.Last()} available.";
+        }
+
         return new MenuNavigationResult
         {
             Type = MenuNavigationResultType.ShowOptions,
             AvailableOptions = options,
             CategoryName = category.Name,
-            Message = $"Sure! We have {string.Join(", ", options.Take(options.Count - 1))} and {options.Last()} available."
+            Message = message
         };
     }
 
