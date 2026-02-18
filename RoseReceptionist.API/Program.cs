@@ -37,6 +37,7 @@ builder.Services.AddScoped<ClaudeService>();
 builder.Services.AddScoped<PersonalityService>();
 builder.Services.AddScoped<MessageQueueService>();
 builder.Services.AddScoped<DailyReportService>();
+builder.Services.AddScoped<ActivityService>();
 builder.Services.AddSingleton<MenuService>();
 
 // Add CORS

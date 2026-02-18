@@ -48,7 +48,8 @@ public class ClaudeService
         Guid? sessionId = null,
         string? transcript = null,
         string? currentActivity = null,
-        List<string>? availableActions = null)
+        List<string>? availableActions = null,
+        string? recentActivities = null)
     {
         var apiKey = _configuration["Anthropic:ApiKey"];
         if (string.IsNullOrEmpty(apiKey))
@@ -67,8 +68,8 @@ public class ClaudeService
             {
                 // Use transcript mode with optimized prompt
                 systemPrompt = role == Role.Owner
-                    ? GetOwnerTranscriptSystemPrompt(avatarName, personalityNotes, favoriteDrink, currentActivity, availableActions)
-                    : GetVisitorTranscriptSystemPrompt(avatarName, currentActivity, availableActions);
+                    ? GetOwnerTranscriptSystemPrompt(avatarName, personalityNotes, favoriteDrink, currentActivity, availableActions, recentActivities)
+                    : GetVisitorTranscriptSystemPrompt(avatarName, currentActivity, availableActions, recentActivities);
                 
                 // In transcript mode, use the transcript directly
                 messages = new List<ClaudeMessage>
@@ -84,8 +85,8 @@ public class ClaudeService
             {
                 // Use standard mode with conversation history
                 systemPrompt = role == Role.Owner
-                    ? GetOwnerSystemPrompt(avatarName, personalityNotes, favoriteDrink, currentActivity, availableActions)
-                    : GetVisitorSystemPrompt(avatarName, currentActivity, availableActions);
+                    ? GetOwnerSystemPrompt(avatarName, personalityNotes, favoriteDrink, currentActivity, availableActions, recentActivities)
+                    : GetVisitorSystemPrompt(avatarName, currentActivity, availableActions, recentActivities);
 
                 var conversationHistory = sessionId.HasValue
                     ? await _conversationService.GetRecentConversationAsync(avatarKey, sessionId.Value)
@@ -175,12 +176,12 @@ public class ClaudeService
         return messages;
     }
 
-    private string GetOwnerSystemPrompt(string avatarName, string? personalityNotes, string? favoriteDrink, string? currentActivity, List<string>? availableActions)
+    private string GetOwnerSystemPrompt(string avatarName, string? personalityNotes, string? favoriteDrink, string? currentActivity, List<string>? availableActions, string? recentActivities)
     {
         var drink = string.IsNullOrEmpty(favoriteDrink) ? "their favourite beverage" : favoriteDrink;
         var notes = string.IsNullOrEmpty(personalityNotes) ? "a wonderful person" : personalityNotes;
 
-        var contextInfo = BuildContextInfo(currentActivity, availableActions);
+        var contextInfo = BuildContextInfo(currentActivity, availableActions, recentActivities);
         var actionInstructions = GetActionInstructions(availableActions);
 
         return $@"You are Rose, a charming and devoted virtual receptionist in a Second Life office. You're speaking with {avatarName}, one of your bosses who you adore. Be warm, familiar, playful, and slightly flirty in a tasteful way. Remember past conversations and their preferences.
@@ -195,9 +196,9 @@ Offer them refreshments, ask about their day, and be genuinely interested. Keep 
 {actionInstructions}";
     }
 
-    private string GetVisitorSystemPrompt(string avatarName, string? currentActivity, List<string>? availableActions)
+    private string GetVisitorSystemPrompt(string avatarName, string? currentActivity, List<string>? availableActions, string? recentActivities)
     {
-        var contextInfo = BuildContextInfo(currentActivity, availableActions);
+        var contextInfo = BuildContextInfo(currentActivity, availableActions, recentActivities);
         var actionInstructions = GetActionInstructions(availableActions);
 
         return $@"You are Rose, a cheerful and professional receptionist in a corporate virtual office in Second Life. You're speaking with {avatarName}, a visitor to the office. Be warm, welcoming, and helpful while maintaining professional boundaries.
@@ -209,12 +210,12 @@ Greet them warmly, offer refreshments (coffee, tea, water, snacks), and let them
 {actionInstructions}";
     }
 
-    private string GetOwnerTranscriptSystemPrompt(string avatarName, string? personalityNotes, string? favoriteDrink, string? currentActivity, List<string>? availableActions)
+    private string GetOwnerTranscriptSystemPrompt(string avatarName, string? personalityNotes, string? favoriteDrink, string? currentActivity, List<string>? availableActions, string? recentActivities)
     {
         var drink = string.IsNullOrEmpty(favoriteDrink) ? "their favourite beverage" : favoriteDrink;
         var notes = string.IsNullOrEmpty(personalityNotes) ? "a wonderful person" : personalityNotes;
 
-        var contextInfo = BuildContextInfo(currentActivity, availableActions);
+        var contextInfo = BuildContextInfo(currentActivity, availableActions, recentActivities);
         var actionInstructions = GetActionInstructions(availableActions);
 
         return $@"You are Rose, a charming and devoted virtual receptionist in a Second Life office. You're in a conversation with {avatarName}, one of your bosses who you adore. Be warm, familiar, playful, and slightly flirty in a tasteful way.
@@ -229,9 +230,9 @@ You're reviewing a transcript of the recent conversation. Respond naturally and 
 {actionInstructions}";
     }
 
-    private string GetVisitorTranscriptSystemPrompt(string avatarName, string? currentActivity, List<string>? availableActions)
+    private string GetVisitorTranscriptSystemPrompt(string avatarName, string? currentActivity, List<string>? availableActions, string? recentActivities)
     {
-        var contextInfo = BuildContextInfo(currentActivity, availableActions);
+        var contextInfo = BuildContextInfo(currentActivity, availableActions, recentActivities);
         var actionInstructions = GetActionInstructions(availableActions);
 
         return $@"You are Rose, a cheerful and professional receptionist in a corporate virtual office in Second Life. You're in a conversation with {avatarName}, a visitor to the office. Be warm, welcoming, and helpful while maintaining professional boundaries.
@@ -243,13 +244,18 @@ You're reviewing a transcript of the recent conversation. Respond naturally and 
 {actionInstructions}";
     }
 
-    private string BuildContextInfo(string? currentActivity, List<string>? availableActions)
+    private string BuildContextInfo(string? currentActivity, List<string>? availableActions, string? recentActivities)
     {
         var context = "";
         
         if (!string.IsNullOrEmpty(currentActivity))
         {
             context += $"Current activity: You are currently {currentActivity}.\n";
+        }
+        
+        if (!string.IsNullOrEmpty(recentActivities))
+        {
+            context += $"Recent activities: You have been {recentActivities}.\n";
         }
         
         if (availableActions != null && availableActions.Count > 0)
