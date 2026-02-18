@@ -65,6 +65,7 @@ Rose is an intelligent virtual receptionist for Second Life that combines LSL sc
 - **Access Control**: Configurable roles (Owner, Visitor, Blocked)
 - **Chat Actions**: Natural language commands trigger in-world actions (give items, navigate, etc.)
 - **Activity Context**: AI is aware of Rose's current activity and available services
+- **Hierarchical Menus**: Multi-level menu navigation ("beverage" → "coffee" → "mocha")
 
 ## Prerequisites
 
