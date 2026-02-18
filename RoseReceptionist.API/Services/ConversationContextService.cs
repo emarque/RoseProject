@@ -26,11 +26,17 @@ public class ConversationContextService
         {
             var limit = int.Parse(_configuration["Rose:ConversationContextLimit"] ?? "10");
 
-            return await _context.ConversationHistory
+            // Use OrderByDescending + Take instead of OrderBy + TakeLast
+            // TakeLast cannot be translated to SQL by EF Core
+            var conversations = await _context.ConversationHistory
                 .Where(c => c.AvatarKey == avatarKey && c.SessionId == sessionId)
-                .OrderBy(c => c.Timestamp)
-                .TakeLast(limit)
+                .OrderByDescending(c => c.Timestamp)
+                .Take(limit)
                 .ToListAsync();
+            
+            // Reverse to return in chronological order (oldest first)
+            conversations.Reverse();
+            return conversations;
         }
         catch (Exception ex)
         {
