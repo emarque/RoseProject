@@ -106,6 +106,26 @@ checkAnimations()
     }
 }
 
+stop_all_animations()
+{
+    list curr_anims = llGetObjectAnimationNames();
+    llSay(0,"stopping all, curr_anims are " + (string) curr_anims);
+    integer length = llGetListLength(curr_anims);
+    integer index = 0;
+    while (index < length)
+    {
+        string anim = llList2String(curr_anims, index);
+        llSay(0, "Stopping " + anim);
+        llStopObjectAnimation(anim);
+        // This check isn't really needed, just included to demonstrate is_animation_running()
+        //if (is_animation_running(anim))
+        //{
+        //    llSay(0, "ERROR - failed to stop " + anim + "!");
+        //}
+        ++index;
+    }
+}
+
 // State definitions
 default
 {
@@ -115,6 +135,7 @@ default
         
         // Check for required animations in inventory
         checkAnimations();
+        stop_all_animations();
     }
     
     link_message(integer sender, integer num, string msg, key link_id)
