@@ -58,11 +58,13 @@ Rose is an intelligent virtual receptionist for Second Life that combines LSL sc
 - **Natural Conversations**: Uses Claude AI for intelligent, context-aware responses
 - **Dual Personality System**: Different behavior for office owners vs. visitors
 - **Message Queue**: Store messages when recipients are offline
-- **Smart Wandering**: Natural movement within defined boundaries
+- **Smart Wandering with Home Position**: Natural movement with configurable home base
 - **Avatar Detection**: Automatic greeting when visitors arrive
 - **Animation System**: Contextual gestures and expressions
 - **Conversation Memory**: Maintains context across multiple messages
 - **Access Control**: Configurable roles (Owner, Visitor, Blocked)
+- **Chat Actions**: Natural language commands trigger in-world actions (give items, navigate, etc.)
+- **Activity Context**: AI is aware of Rose's current activity and available services
 
 ## Prerequisites
 
@@ -136,9 +138,23 @@ SUBSCRIBER_KEY=your-subscriber-key-here
 # Owner UUIDs (can have multiple)
 OWNER_UUID=00000000-0000-0000-0000-000000000000
 
+# Home Position (NEW)
+HOME_WAYPOINT=0
+HOME_DURATION_MINUTES=15
+
+# Available Menu Items (NEW - comma-separated)
+AVAILABLE_ACTIONS=Coffee, Tea, Water, Hot Chocolate, Espresso
+
 # Advanced Settings
 # GREETING_RANGE=10
 ```
+
+**New Features:**
+- `HOME_WAYPOINT`: Waypoint number where Rose spends most of her time (set to -1 to disable)
+- `HOME_DURATION_MINUTES`: How long Rose stays at home before starting her activity loop
+- `AVAILABLE_ACTIONS`: Services/items Rose can provide via natural language chat
+
+See [docs/HOME_POSITION_AND_CHAT_ACTIONS.md](docs/HOME_POSITION_AND_CHAT_ACTIONS.md) for detailed documentation.
 
 ---
 
