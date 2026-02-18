@@ -17,9 +17,9 @@ integer LINK_WANDERING_STATE = 2000;
 integer LINK_ACTIVITY_UPDATE = 2001;
 
 // Navigation - Using keyframed motion instead of pathfinding
-float MOVEMENT_SPEED = 0.5;  // meters per second
+float MOVEMENT_SPEED = 1.5;  // meters per second
 integer NAVIGATION_TIMEOUT = 60; // seconds
-float WAYPOINT_POSITION_TOLERANCE = 1.0; // meters
+float WAYPOINT_POSITION_TOLERANCE = .0125; // meters
 integer STAY_IN_PARCEL = TRUE;  // Prevent character from leaving parcel
 
 // Door blocking detection
@@ -50,6 +50,7 @@ list available_dance_animations = [];   // "anim dance" animations
 list available_turnleft_animations = []; // "anim turnleft" animations
 list available_turnright_animations = []; // "anim turnright" animations
 list available_linger_animations = [];  // Other "anim [tag]" for linger tasks
+string default_stand = "anim stand 1";
 
 // Attachables from RoseConfig
 list available_attachables = [];
@@ -504,7 +505,7 @@ sendActivityBatch()
          HTTP_BODY_MAXLENGTH, 16384],
         json);
     
-    llOwnerSay("Sent batch: " + (string)(llGetListLength(pending_activities) / 4) + " activities");
+    //llOwnerSay("Sent batch: " + (string)(llGetListLength(pending_activities) / 4) + " activities");
     
     pending_activities = [];
     tracked_activities = []; // Clear to prevent unbounded memory growth - activities are unique per batch
@@ -635,8 +636,8 @@ string getWaypointConfig(integer waypoint_number)
 // Check if a waypoint is blocked by a closed door
 integer isWaypointBlocked(vector target_pos)
 {
-    if (!DOOR_DETECTION_ENABLED) return FALSE;
-    
+    //if (!DOOR_DETECTION_ENABLED) return FALSE;
+    return FALSE;
     vector start_pos = llGetPos();
     vector direction = target_pos - start_pos;
     float distance = llVecMag(direction);
@@ -785,7 +786,7 @@ processWaypoint(key wpKey, vector wpPos)
     if (activity_type == "transient")
     {
         // Pass through without stopping
-        llSleep(1.0);
+        //llSleep(1.0);
         moveToNextWaypoint();
     }
     else if (activity_type == "linger")
@@ -805,7 +806,12 @@ processWaypoint(key wpKey, vector wpPos)
         {
             llMessageLinked(LINK_SET, 0, "PLAY_ANIM:" + activity_animation, NULL_KEY);
         }
-        
+        else 
+        {
+            integer numAnims = llGetListLength(available_stand_animations);
+            integer randIndex = (integer)llFrand(numAnims);
+            llMessageLinked(LINK_SET, 0, "PLAY_ANIM:" + llList2String(available_stand_animations, randIndex), NULL_KEY);
+        }
         // Handle attachments (simplified - notify other scripts)
         if (attachments_json != "")
         {
@@ -900,10 +906,14 @@ moveToNextWaypoint()
     }
     
     // Calculate rotation to face direction of travel (2-axis only, no diagonal lean)
-    vector direction = llVecNorm(offset);
-    float angle = llAtan2(direction.y, direction.x);  // Horizontal angle only
-    rotation facing = llEuler2Rot(<0, 0, angle - PI_BY_TWO>);  // Z-axis rotation only
-    llSetRot(facing);
+    //vector direction = llVecNorm(offset);
+    //float angle = llAtan2(direction.y, direction.x);  // Horizontal angle only
+    //rotation facing = llEuler2Rot(<0, 0, angle - PI_BY_TWO>);  // Z-axis rotation only
+    //llSetRot(facing);
+    //vector vTarget=llList2Vector(llGetObjectDetails("targetkey",[OBJECT_POS]),0);
+    //vector vPos=llGetPos(); //object position
+    float fDistance=llVecDist(<current_target_pos.x,current_target_pos.y,0>,<start_pos.x,start_pos.y,0>); // XY Distance, disregarding height differences.
+    llSetRot(llRotBetween(<1,0,0>,llVecNorm(<fDistance,0,current_target_pos.z - start_pos.z>)) * llRotBetween(<1,0,0>,llVecNorm(<current_target_pos.x - start_pos.x,current_target_pos.y - start_pos.y,0>)));
     
     // Start a random walk animation before navigating
     startWalkAnimation();
@@ -936,7 +946,7 @@ default
         llOwnerSay("Rose Prim-Based Navigation System active");
         
         // Enable physics for keyframed motion
-        llSetStatus(STATUS_PHYSICS, TRUE);
+        llSetStatus(STATUS_PHYSICS, FALSE);
         
         // Initialize batch timing
         last_batch_time = llGetUnixTime();
@@ -1151,8 +1161,8 @@ default
             // Check for navigation timeout
             if (llGetUnixTime() - navigation_start_time > NAVIGATION_TIMEOUT)
             {
-                llOwnerSay("NAV: Timeout after " + (string)NAVIGATION_TIMEOUT + "s, dist:" + 
-                           (string)llVecDist(llGetPos(), current_target_pos) + "m");
+                //llOwnerSay("NAV: Timeout after " + (string)NAVIGATION_TIMEOUT + "s, dist:" + 
+                           //(string)llVecDist(llGetPos(), current_target_pos) + "m");
                 // Stop keyframed motion
                 llSetKeyframedMotion([], [KFM_COMMAND, KFM_CMD_STOP]);
                 stopWalkAnimation();
