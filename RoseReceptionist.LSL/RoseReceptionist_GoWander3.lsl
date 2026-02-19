@@ -1426,13 +1426,16 @@ default
                 
                 moveToNextWaypoint();
             }
-            else if (current_state == "LINGERING" && activity_animation == "" && current_stand_animation != "")
+            else if (current_state == "LINGERING" && activity_animation == "" && STAND_ANIMATION_INTERVAL > 0)
             {
                 // We're lingering with stand animations - check if it's time to switch
-                integer time_since_change = llGetUnixTime() - last_stand_change_time;
-                if (time_since_change >= STAND_ANIMATION_INTERVAL)
+                if (current_stand_animation != "")
                 {
-                    switchStandAnimation();
+                    integer time_since_change = llGetUnixTime() - last_stand_change_time;
+                    if (time_since_change >= STAND_ANIMATION_INTERVAL)
+                    {
+                        switchStandAnimation();
+                    }
                 }
                 
                 // Set timer for next check
