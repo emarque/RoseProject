@@ -204,10 +204,6 @@ startWalkAnimation()
         llStartObjectAnimation(walk_anim);
         current_walk_animation = walk_anim;
     }
-    //else
-    //{
-    //    llOwnerSay("Walk anim not found: " + walk_anim);
-    //}
 }
 
 // Stop the current walk animation
@@ -491,7 +487,6 @@ sendActivityBatch()
          HTTP_BODY_MAXLENGTH, 16384],
         json);
     
-    //llOwnerSay("Sent batch: " + (string)(llGetListLength(pending_activities) / 4) + " activities");
     
     pending_activities = [];
     tracked_activities = []; // Clear to prevent unbounded memory growth - activities are unique per batch
@@ -929,9 +924,7 @@ processWaypoint(key wpKey, vector wpPos)
     else if (activity_type == "sit")
     {
         // Find matching sit prim and sit
-        // NOTE: For sitting to work properly, the waypoint prim itself should have a sit target configured.
-        // This script cannot set sit targets on other objects, only the object it's in.
-        // The avatar must use llSitOnObject() or the user must manually click to sit.
+        // Note: Sitting requires sit target configured on waypoint prim
         
         // Notify to play sit animation
         if (activity_animation != "")
@@ -1092,13 +1085,6 @@ navigateToCurrentWaypoint()
     
     // Calculate rotation to face direction of travel (2-axis only, no diagonal lean)
     //vector direction = llVecNorm(offset);
-    //float angle = llAtan2(direction.y, direction.x);  // Horizontal angle only
-    //rotation facing = llEuler2Rot(<0, 0, angle - PI_BY_TWO>);  // Z-axis rotation only
-    //llSetRot(facing);
-    //vector vTarget=llList2Vector(llGetObjectDetails("targetkey",[OBJECT_POS]),0);
-    //vector vPos=llGetPos(); //object position
-    float fDistance=llVecDist(<current_target_pos.x,current_target_pos.y,0>,<start_pos.x,start_pos.y,0>); // XY Distance, disregarding height differences.
-    llSetRot(llRotBetween(<1,0,0>,llVecNorm(<fDistance,0,current_target_pos.z - start_pos.z>)) * llRotBetween(<1,0,0>,llVecNorm(<current_target_pos.x - start_pos.x,current_target_pos.y - start_pos.y,0>)));
     
     // Start a random walk animation before navigating
     startWalkAnimation();
@@ -1187,7 +1173,6 @@ default
                             if (configKey == "WAYPOINT_PREFIX")
                             {
                                 WAYPOINT_PREFIX = value;
-                                //llOwnerSay("WAYPOINT_PREFIX: " + WAYPOINT_PREFIX);
                             }
                             else if (configKey == "API_ENDPOINT")
                             {
@@ -1234,12 +1219,10 @@ default
                             else if (configKey == "HOME_WAYPOINT")
                             {
                                 HOME_WAYPOINT = (integer)value;
-                                //llOwnerSay("HOME_WAYPOINT: " + (string)HOME_WAYPOINT);
                             }
                             else if (configKey == "HOME_DURATION_MINUTES")
                             {
                                 HOME_DURATION_MINUTES = (integer)value;
-                                //llOwnerSay("HOME_DURATION_MINUTES: " + (string)HOME_DURATION_MINUTES);
                             }
                         }
                     }
@@ -1377,7 +1360,6 @@ default
             // Check for navigation timeout
             if (llGetUnixTime() - navigation_start_time > NAVIGATION_TIMEOUT)
             {
-                //llOwnerSay("NAV: Timeout after " + (string)NAVIGATION_TIMEOUT + "s, dist:" + 
                            //(string)llVecDist(llGetPos(), current_target_pos) + "m");
                 // Stop keyframed motion
                 llSetKeyframedMotion([], [KFM_COMMAND, KFM_CMD_STOP]);
