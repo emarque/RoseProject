@@ -316,7 +316,7 @@ list parseWaypointJSON(string json)
         if (arrayStart != -1)
         {
             arrayStart += attachStart;
-            integer arrayEnd = llSubStringIndex(llGetSubString(json, arrayStart, -1), "]");
+            integer arrayEnd = llSubStringIndex(llGetSubString(json, arrayStart, arrayStart + 500), "]");
             if (arrayEnd != -1)
             {
                 attachJson = llGetSubString(json, arrayStart, arrayStart + arrayEnd);
