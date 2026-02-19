@@ -273,7 +273,7 @@ list parseWaypointJSON(string json)
         
         if (endPos != -1)
         {
-            orientation = (integer)llGetSubString(json, orientStart, orientStart + endPos - 1);
+            orientation = (integer)llGetSubString(orientSubstr, 0, endPos - 1);
         }
     }
     
@@ -292,7 +292,7 @@ list parseWaypointJSON(string json)
         
         if (endPos != -1)
         {
-            time = (integer)llGetSubString(json, timeStart, timeStart + endPos - 1);
+            time = (integer)llGetSubString(timeSubstr, 0, endPos - 1);
         }
     }
     
