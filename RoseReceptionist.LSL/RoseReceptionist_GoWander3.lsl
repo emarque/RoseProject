@@ -22,6 +22,9 @@ integer NAVIGATION_TIMEOUT = 60; // seconds
 float WAYPOINT_POSITION_TOLERANCE = .0125; // meters
 integer STAY_IN_PARCEL = TRUE;  // Prevent character from leaving parcel
 
+// Animation variation
+integer STAND_ANIMATION_INTERVAL = 5;  // seconds between stand animation changes
+
 // Door blocking detection
 integer DOOR_DETECTION_ENABLED = TRUE;
 string DOOR_NAME_PATTERN = "door";  // Case-insensitive partial match
@@ -88,6 +91,10 @@ integer loop_started = FALSE;  // Whether we've started the wander loop
 
 // Walk animation state
 string current_walk_animation = "";  // Currently playing walk animation
+
+// Stand animation variation state
+string current_stand_animation = "";  // Currently playing stand animation
+integer last_stand_change_time = 0;  // When stand animation was last changed
 
 // Activity data
 string activity_type = "";
@@ -214,6 +221,37 @@ stopWalkAnimation()
     {
         llStopObjectAnimation(current_walk_animation);
         current_walk_animation = "";
+    }
+}
+
+// Switch to a random stand animation (if no specific animation is set)
+switchStandAnimation()
+{
+    // Stop current stand animation if playing
+    if (current_stand_animation != "")
+    {
+        llMessageLinked(LINK_SET, 0, "STOP_ANIM:" + current_stand_animation, NULL_KEY);
+        current_stand_animation = "";
+    }
+    
+    // Pick a random stand animation
+    integer numAnims = llGetListLength(available_stand_animations);
+    if (numAnims > 0)
+    {
+        integer randIndex = (integer)llFrand(numAnims);
+        current_stand_animation = llList2String(available_stand_animations, randIndex);
+        llMessageLinked(LINK_SET, 0, "PLAY_ANIM:" + current_stand_animation, NULL_KEY);
+        last_stand_change_time = llGetUnixTime();
+    }
+}
+
+// Stop the current stand animation
+stopStandAnimation()
+{
+    if (current_stand_animation != "")
+    {
+        llMessageLinked(LINK_SET, 0, "STOP_ANIM:" + current_stand_animation, NULL_KEY);
+        current_stand_animation = "";
     }
 }
 
@@ -865,16 +903,17 @@ processWaypoint(key wpKey, vector wpPos)
             llSetRot(rot);
         }
         
-        // Play animation if specified
+        // Play animation if specified, or use stand animations
         if (activity_animation != "")
         {
             llMessageLinked(LINK_SET, 0, "PLAY_ANIM:" + activity_animation, NULL_KEY);
+            // Store that we're using a specific animation (not a varying stand animation)
+            current_stand_animation = "";
         }
         else 
         {
-            integer numAnims = llGetListLength(available_stand_animations);
-            integer randIndex = (integer)llFrand(numAnims);
-            llMessageLinked(LINK_SET, 0, "PLAY_ANIM:" + llList2String(available_stand_animations, randIndex), NULL_KEY);
+            // Use varying stand animations
+            switchStandAnimation();
         }
         // Handle attachments (simplified - notify other scripts)
         if (attachments_json != "")
@@ -882,8 +921,14 @@ processWaypoint(key wpKey, vector wpPos)
             llMessageLinked(LINK_SET, 0, "ATTACHMENTS:" + attachments_json, NULL_KEY);
         }
         
-        // Wait for duration
-        llSetTimerEvent((float)activity_duration);
+        // Set timer to check frequently for stand animation changes and activity completion
+        // Use the smaller of the two intervals
+        float timer_interval = (float)STAND_ANIMATION_INTERVAL;
+        if (activity_duration < STAND_ANIMATION_INTERVAL)
+        {
+            timer_interval = (float)activity_duration;
+        }
+        llSetTimerEvent(timer_interval);
         current_state = "LINGERING";
     }
     else if (activity_type == "sit")
@@ -1161,6 +1206,10 @@ default
                             {
                                 MOVEMENT_SPEED = (float)value;
                             }
+                            else if (configKey == "STAND_ANIMATION_INTERVAL")
+                            {
+                                STAND_ANIMATION_INTERVAL = (integer)value;
+                            }
                             else if (configKey == "DOOR_DETECTION_ENABLED")
                             {
                                 if (llToUpper(value) == "TRUE" || value == "1")
@@ -1357,15 +1406,44 @@ default
         }
         else if (current_state == "LINGERING" || current_state == "SITTING")
         {
-            // Duration completed
+            // Check if activity duration is complete
+            integer elapsed = llGetUnixTime() - activity_start_time;
             
-            // Stop animation
-            if (activity_animation != "")
+            if (elapsed >= activity_duration)
             {
-                llMessageLinked(LINK_SET, 0, "STOP_ANIM:" + activity_animation, NULL_KEY);
+                // Duration completed - stop animations and move to next waypoint
+                
+                // Stop animation
+                if (activity_animation != "")
+                {
+                    llMessageLinked(LINK_SET, 0, "STOP_ANIM:" + activity_animation, NULL_KEY);
+                }
+                else
+                {
+                    // Stop stand animation if we were using one
+                    stopStandAnimation();
+                }
+                
+                moveToNextWaypoint();
             }
-            
-            moveToNextWaypoint();
+            else if (current_state == "LINGERING" && activity_animation == "" && current_stand_animation != "")
+            {
+                // We're lingering with stand animations - check if it's time to switch
+                integer time_since_change = llGetUnixTime() - last_stand_change_time;
+                if (time_since_change >= STAND_ANIMATION_INTERVAL)
+                {
+                    switchStandAnimation();
+                }
+                
+                // Set timer for next check
+                integer time_until_duration = activity_duration - elapsed;
+                float timer_interval = (float)STAND_ANIMATION_INTERVAL;
+                if (time_until_duration < STAND_ANIMATION_INTERVAL)
+                {
+                    timer_interval = (float)time_until_duration;
+                }
+                llSetTimerEvent(timer_interval);
+            }
         }
         
         // Check if it's time for daily report (only once per day)

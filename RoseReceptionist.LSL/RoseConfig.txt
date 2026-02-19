@@ -23,6 +23,11 @@ HOME_DURATION=300
 # Movement speed in meters per second
 MOVEMENT_SPEED=0.5
 
+# Stand Animation Variation
+# How often (in seconds) to switch to a random stand animation during activities
+# Set to 0 to disable automatic variation (default: 5)
+STAND_ANIMATION_INTERVAL=5
+
 # Door Blocking Detection
 # Enable to check for closed doors blocking waypoints
 DOOR_DETECTION_ENABLED=TRUE
