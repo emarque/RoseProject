@@ -179,9 +179,9 @@ scanInventoryAnimations()
         }
     }
     
-    // Consolidated report
-    llOwnerSay("Animations: " + (string)llGetListLength(available_walk_animations) + " walk, " + 
-               (string)llGetListLength(available_linger_animations) + " linger");
+    // Report animation counts
+    llOwnerSay("Anims: " + (string)llGetListLength(available_walk_animations) + "w " + 
+               (string)llGetListLength(available_linger_animations) + "l");
 }
 
 // Start a random walk animation
@@ -572,7 +572,7 @@ generateDailyReport()
         json
     );
     
-    llOwnerSay("Daily report generated for " + today);
+    llOwnerSay("Daily report: " + today);
 }
 
 // Load waypoint configurations from notecard
@@ -583,7 +583,7 @@ loadWaypointConfig()
         waypoint_configs = [];
         waypointConfigLine = 0;
         waypointConfigQuery = llGetNotecardLine(WAYPOINT_CONFIG_NOTECARD, waypointConfigLine);
-        llOwnerSay("Loading waypoint config: " + WAYPOINT_CONFIG_NOTECARD);
+        llOwnerSay("Loading wp config: " + WAYPOINT_CONFIG_NOTECARD);
     }
     else
     {
@@ -787,7 +787,7 @@ integer findNextUnblockedWaypoint()
 
 initializeNavigation()
 {
-    llOwnerSay("Navigation initialized with waypoint configurations from notecard");
+    llOwnerSay("Nav init with wp configs");
     // Start wandering if waypoint configs are loaded
     if (llGetListLength(waypoint_configs) > 0)
     {
@@ -796,7 +796,7 @@ initializeNavigation()
     }
     else
     {
-        llOwnerSay("No waypoint configs. Add " + WAYPOINT_CONFIG_NOTECARD);
+        llOwnerSay("No wp config notecard");
     }
 }
 
@@ -965,7 +965,7 @@ moveToNextWaypoint()
     integer num_waypoints = getWaypointCount();
     if (num_waypoints == 0)
     {
-        llOwnerSay("No waypoint configs available");
+        llOwnerSay("No wp configs");
         llSetTimerEvent(30.0);
         return;
     }
@@ -977,7 +977,7 @@ moveToNextWaypoint()
         integer home_index = findWaypointIndexByNumber(HOME_WAYPOINT);
         if (home_index == -1)
         {
-            llOwnerSay("Home waypoint " + (string)HOME_WAYPOINT + " not found!");
+            llOwnerSay("Home wp " + (string)HOME_WAYPOINT + " not found");
             // Continue with normal wandering
         }
         else
@@ -1017,7 +1017,7 @@ moveToNextWaypoint()
     
     if (found_index == -1)
     {
-        llOwnerSay("All waypoints blocked, waiting...");
+        llOwnerSay("All wp blocked");
         llSetTimerEvent(30.0);  // Try again in 30 seconds
         return;
     }
@@ -1133,7 +1133,7 @@ default
 {
     state_entry()
     {
-        llOwnerSay("Rose Prim-Based Navigation System active");
+        llOwnerSay("Rose Nav Active");
         
         // Enable physics for keyframed motion
         llSetStatus(STATUS_PHYSICS, FALSE);
@@ -1144,13 +1144,13 @@ default
         // Read configuration from notecard
         if (llGetInventoryType(notecardName) == INVENTORY_NOTECARD)
         {
-            llOwnerSay("Reading configuration from " + notecardName + "...");
+            llOwnerSay("Reading config...");
             notecardLine = 0;
             notecardQuery = llGetNotecardLine(notecardName, notecardLine);
         }
         else
         {
-            llOwnerSay("No RoseConfig notecard found, using defaults");
+            llOwnerSay("No config, using defaults");
             // Still scan inventory for animations
             scanInventoryAnimations();
             initializeNavigation();
@@ -1192,7 +1192,7 @@ default
                             if (configKey == "WAYPOINT_PREFIX")
                             {
                                 WAYPOINT_PREFIX = value;
-                                llOwnerSay("WAYPOINT_PREFIX: " + WAYPOINT_PREFIX);
+                                //llOwnerSay("WAYPOINT_PREFIX: " + WAYPOINT_PREFIX);
                             }
                             else if (configKey == "API_ENDPOINT")
                             {
@@ -1239,12 +1239,12 @@ default
                             else if (configKey == "HOME_WAYPOINT")
                             {
                                 HOME_WAYPOINT = (integer)value;
-                                llOwnerSay("HOME_WAYPOINT: " + (string)HOME_WAYPOINT);
+                                //llOwnerSay("HOME_WAYPOINT: " + (string)HOME_WAYPOINT);
                             }
                             else if (configKey == "HOME_DURATION_MINUTES")
                             {
                                 HOME_DURATION_MINUTES = (integer)value;
-                                llOwnerSay("HOME_DURATION_MINUTES: " + (string)HOME_DURATION_MINUTES);
+                                //llOwnerSay("HOME_DURATION_MINUTES: " + (string)HOME_DURATION_MINUTES);
                             }
                         }
                     }
@@ -1257,10 +1257,10 @@ default
             else
             {
                 // Finished reading RoseConfig
-                llOwnerSay("Configuration loaded.");
+                llOwnerSay("Config loaded");
                 if (llGetListLength(available_attachables) > 0)
                 {
-                    llOwnerSay("Loaded " + (string)llGetListLength(available_attachables) + " attachables");
+                    llOwnerSay((string)llGetListLength(available_attachables) + " attachables");
                 }
                 
                 // Scan inventory for animations using naming convention
@@ -1369,7 +1369,7 @@ default
                     }
                     configCount++;
                 }
-                llOwnerSay("Loaded " + (string)configCount + " waypoints");
+                llOwnerSay((string)configCount + " waypoints");
                 initializeNavigation();
             }
         }
@@ -1533,11 +1533,11 @@ default
             {
                 if (error_429_count > 1)
                 {
-                    llOwnerSay("API rate limit (429) - " + (string)error_429_count + " throttled");
+                    llOwnerSay("429 x" + (string)error_429_count);
                 }
                 else
                 {
-                    llOwnerSay("API rate limit (429). Will retry.");
+                    llOwnerSay("429 throttled");
                 }
                 last_429_time = now;
                 error_429_count = 0;
@@ -1546,7 +1546,7 @@ default
         else
         {
             // Log other HTTP errors (these indicate real problems)
-            llOwnerSay("HTTP Error: " + (string)status);
+            llOwnerSay("HTTP " + (string)status);
         }
     }
     
