@@ -1,10 +1,8 @@
 // RoseReceptionist_GoWander3.lsl
-// Prim-based Navigation System for Rose Receptionist
-// Rose walks to sequentially numbered prims (Wander0, Wander1, etc.) and performs actions
+// Navigation system for Rose - walks to waypoint prims
 
-// ============================================================================
 // CONFIGURATION
-// ============================================================================
+
 
 string API_ENDPOINT = "https://rosercp.pantherplays.com/api";
 string API_KEY = "your-api-key-here";
@@ -47,28 +45,26 @@ string notecardName = "RoseConfig";
 key waypointConfigQuery;
 integer waypointConfigLine = 0;
 string WAYPOINT_CONFIG_NOTECARD = "[WPP]WaypointConfig";
-// Waypoint storage format (variable length):
-// Transient: [wpNum, pos] (2 elements)
-// Linger/Sit: [wpNum, pos, type, name, orientation, time, animation, attachments] (8 elements)
+// Waypoint storage: [wpNum, pos] or [wpNum, pos, type, name, orientation, time, anim, attach]
 list waypoint_configs = [];
 
-// Animation lists discovered from inventory
-list available_walk_animations = [];    // "anim walk" animations for navigation
-list available_stand_animations = [];   // "anim stand" animations
-list available_sit_animations = [];     // "anim sit" animations
-list available_dance_animations = [];   // "anim dance" animations
-list available_turnleft_animations = []; // "anim turnleft" animations
-list available_turnright_animations = []; // "anim turnright" animations
-list available_linger_animations = [];  // Other "anim [tag]" for linger tasks
+// Animation lists from inventory
+list available_walk_animations = [];
+list available_stand_animations = [];
+list available_sit_animations = [];
+list available_dance_animations = [];
+list available_turnleft_animations = [];
+list available_turnright_animations = [];
+list available_linger_animations = [];
 string default_stand = "anim stand 1";
 
 // Attachables from RoseConfig
 list available_attachables = [];
 integer in_attachables_section = FALSE;  // Flag for reading attachables section
 
-// ============================================================================
+
 // STATE VARIABLES
-// ============================================================================
+
 
 integer current_waypoint_index = -1;
 string current_state = "IDLE";
@@ -117,9 +113,9 @@ integer last_batch_time = 0;
 // Track unique activities only
 list tracked_activities = []; // [activity_name, ...]
 
-// ============================================================================
+
 // UTILITY FUNCTIONS
-// ============================================================================
+
 
 // Scan inventory for animations and categorize by naming convention
 scanInventoryAnimations()
@@ -208,10 +204,10 @@ startWalkAnimation()
         llStartObjectAnimation(walk_anim);
         current_walk_animation = walk_anim;
     }
-    else
-    {
-        llOwnerSay("Walk anim not found: " + walk_anim);
-    }
+    //else
+    //{
+    //    llOwnerSay("Walk anim not found: " + walk_anim);
+    //}
 }
 
 // Stop the current walk animation
@@ -258,8 +254,7 @@ stopStandAnimation()
 // Parse JSON from prim description
 list parseWaypointJSON(string json)
 {
-    // Simple JSON parser for LSL
-    // Expected format: {"type":"linger","name":"watering plants","orientation":180,"time":45,"animation":"watering","attachments":[{"item":"Can","point":"RightHand"}]}
+    // JSON parser for LSL
     
     json = llStringTrim(json, STRING_TRIM);
     
@@ -689,9 +684,9 @@ integer findWaypointIndexByNumber(integer waypoint_number)
     return -1;  // Not found
 }
 
-// ============================================================================
+
 // DOOR BLOCKING DETECTION
-// ============================================================================
+
 
 // Check if a waypoint is blocked by a closed door
 integer isWaypointBlocked(vector target_pos)
@@ -781,9 +776,9 @@ integer findNextUnblockedWaypoint()
     return -1;
 }
 
-// ============================================================================
+
 // NAVIGATION FUNCTIONS
-// ============================================================================
+
 
 initializeNavigation()
 {
@@ -1125,9 +1120,9 @@ navigateToCurrentWaypoint()
     llSetTimerEvent(1.0);  // Check progress every second
 }
 
-// ============================================================================
+
 // MAIN STATE MACHINE
-// ============================================================================
+
 
 default
 {
