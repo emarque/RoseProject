@@ -110,13 +110,6 @@ integer last_batch_time = 0;
 // Track unique activities only
 list tracked_activities = []; // [activity_name, ...]
 
-// Confirmation dialog state
-string pending_action = "";        // Action awaiting confirmation
-string pending_action_data = "";   // Associated data
-key pending_action_user = NULL_KEY;
-integer confirmation_listener = 0;
-integer confirmation_channel = 0;
-
 // ============================================================================
 // UTILITY FUNCTIONS
 // ============================================================================
@@ -239,185 +232,131 @@ list parseWaypointJSON(string json)
         return ["linger", "pausing", -1, justNumber, "", ""];
     }
     
-    list result = [];
-    
-    // Extract type
-    integer typeStart = llSubStringIndex(json, "\"type\":\"") + 8;
-    if (typeStart > 7)
+    // Extract type - optimized to reduce temporary strings
+    string type = "transient";
+    integer typeStart = llSubStringIndex(json, "\"type\":\"");
+    if (typeStart != -1)
     {
-        integer typeEnd = llSubStringIndex(llGetSubString(json, typeStart, -1), "\"");
-        string type = llGetSubString(json, typeStart, typeStart + typeEnd - 1);
-        result += [type];
-    }
-    else
-    {
-        result += ["transient"];
+        typeStart += 8;
+        integer typeEnd = llSubStringIndex(llGetSubString(json, typeStart, typeStart + 20), "\"");
+        if (typeEnd != -1)
+        {
+            type = llGetSubString(json, typeStart, typeStart + typeEnd - 1);
+        }
     }
     
     // Extract name
-    integer nameStart = llSubStringIndex(json, "\"name\":\"") + 8;
-    if (nameStart > 7)
+    string name = "waypoint";
+    integer nameStart = llSubStringIndex(json, "\"name\":\"");
+    if (nameStart != -1)
     {
-        integer nameEnd = llSubStringIndex(llGetSubString(json, nameStart, -1), "\"");
-        string name = llGetSubString(json, nameStart, nameStart + nameEnd - 1);
-        result += [name];
-    }
-    else
-    {
-        result += ["waypoint"];
+        nameStart += 8;
+        integer nameEnd = llSubStringIndex(llGetSubString(json, nameStart, nameStart + 100), "\"");
+        if (nameEnd != -1)
+        {
+            name = llGetSubString(json, nameStart, nameStart + nameEnd - 1);
+        }
     }
     
     // Extract orientation (optional)
-    integer orientStart = llSubStringIndex(json, "\"orientation\":") + 15;
-    if (orientStart > 14)
+    integer orientation = -1;
+    integer orientStart = llSubStringIndex(json, "\"orientation\":");
+    if (orientStart != -1)
     {
-        string orientStr = llGetSubString(json, orientStart, orientStart + 10);
-        integer commaPos = llSubStringIndex(orientStr, ",");
-        integer bracePos = llSubStringIndex(orientStr, "}");
+        orientStart += 15;
+        integer commaPos = llSubStringIndex(llGetSubString(json, orientStart, orientStart + 10), ",");
+        integer bracePos = llSubStringIndex(llGetSubString(json, orientStart, orientStart + 10), "}");
         integer endPos = commaPos;
         if (endPos == -1 || (bracePos != -1 && bracePos < endPos))
             endPos = bracePos;
         
         if (endPos != -1)
         {
-            orientStr = llGetSubString(orientStr, 0, endPos - 1);
-            result += [(integer)orientStr];
+            orientation = (integer)llGetSubString(json, orientStart, orientStart + endPos - 1);
         }
-        else
-        {
-            result += [-1];
-        }
-    }
-    else
-    {
-        result += [-1];
     }
     
     // Extract time (optional)
-    integer timeStart = llSubStringIndex(json, "\"time\":") + 7;
-    if (timeStart > 6)
+    integer time = 0;
+    integer timeStart = llSubStringIndex(json, "\"time\":");
+    if (timeStart != -1)
     {
-        string timeStr = llGetSubString(json, timeStart, timeStart + 10);
-        integer commaPos = llSubStringIndex(timeStr, ",");
-        integer bracePos = llSubStringIndex(timeStr, "}");
+        timeStart += 7;
+        integer commaPos = llSubStringIndex(llGetSubString(json, timeStart, timeStart + 10), ",");
+        integer bracePos = llSubStringIndex(llGetSubString(json, timeStart, timeStart + 10), "}");
         integer endPos = commaPos;
         if (endPos == -1 || (bracePos != -1 && bracePos < endPos))
             endPos = bracePos;
         
         if (endPos != -1)
         {
-            timeStr = llGetSubString(timeStr, 0, endPos - 1);
-            result += [(integer)timeStr];
+            time = (integer)llGetSubString(json, timeStart, timeStart + endPos - 1);
         }
-        else
-        {
-            result += [0];
-        }
-    }
-    else
-    {
-        result += [0];
     }
     
     // Extract animation (optional)
-    integer animStart = llSubStringIndex(json, "\"animation\":\"") + 13;
-    if (animStart > 12)
+    string anim = "";
+    integer animStart = llSubStringIndex(json, "\"animation\":\"");
+    if (animStart != -1)
     {
-        integer animEnd = llSubStringIndex(llGetSubString(json, animStart, -1), "\"");
-        string anim = llGetSubString(json, animStart, animStart + animEnd - 1);
-        result += [anim];
-    }
-    else
-    {
-        result += [""];
+        animStart += 13;
+        integer animEnd = llSubStringIndex(llGetSubString(json, animStart, animStart + 50), "\"");
+        if (animEnd != -1)
+        {
+            anim = llGetSubString(json, animStart, animStart + animEnd - 1);
+        }
     }
     
     // Extract attachments (simplified - just store the JSON string)
+    string attachJson = "";
     integer attachStart = llSubStringIndex(json, "\"attachments\":");
     if (attachStart != -1)
     {
-        integer arrayStart = llSubStringIndex(llGetSubString(json, attachStart, -1), "[");
+        integer arrayStart = llSubStringIndex(llGetSubString(json, attachStart, attachStart + 15), "[");
         if (arrayStart != -1)
         {
             arrayStart += attachStart;
             integer arrayEnd = llSubStringIndex(llGetSubString(json, arrayStart, -1), "]");
             if (arrayEnd != -1)
             {
-                string attachJson = llGetSubString(json, arrayStart, arrayStart + arrayEnd);
-                result += [attachJson];
-            }
-            else
-            {
-                result += [""];
+                attachJson = llGetSubString(json, arrayStart, arrayStart + arrayEnd);
             }
         }
-        else
-        {
-            result += [""];
-        }
+    }
+    
+    // Return single list to avoid additional list operations
+    return [type, name, orientation, time, anim, attachJson];
+}
+
+toggleWander()
+{
+    wander_enabled = !wander_enabled;
+    
+    string status;
+    if (wander_enabled)
+    {
+        status = "enabled";
     }
     else
     {
-        result += [""];
+        status = "disabled";
     }
+    llOwnerSay("Wandering " + status);
     
-    return result;
-}
-
-showConfirmationDialog(key user, string action, string description, string data)
-{
-    // Clean up any existing confirmation listener
-    if (confirmation_listener != 0)
+    if (!wander_enabled)
     {
-        llListenRemove(confirmation_listener);
+        if (is_navigating)
+        {
+            llSetKeyframedMotion([], [KFM_COMMAND, KFM_CMD_STOP]);
+            stopWalkAnimation();
+            is_navigating = FALSE;
+        }
+        llSetTimerEvent(0.0);
+        current_state = "IDLE";
     }
-    
-    pending_action = action;
-    pending_action_data = data;
-    pending_action_user = user;
-    confirmation_channel = -1000 - (integer)llFrand(99999);
-    confirmation_listener = llListen(confirmation_channel, "", user, "");
-    
-    llDialog(user, 
-        description + "\n\nAre you sure?",
-        ["Yes", "Cancel"],
-        confirmation_channel);
-    
-    llSetTimerEvent(30.0); // Auto-cancel after 30s
-}
-
-executeConfirmedAction(string action, string data)
-{
-    if (action == "TOGGLE_WANDER")
+    else
     {
-        wander_enabled = !wander_enabled;
-        
-        string status;
-        if (wander_enabled)
-        {
-            status = "enabled";
-        }
-        else
-        {
-            status = "disabled";
-        }
-        llOwnerSay("Wandering " + status);
-        
-        if (!wander_enabled)
-        {
-            if (is_navigating)
-            {
-                llSetKeyframedMotion([], [KFM_COMMAND, KFM_CMD_STOP]);
-                stopWalkAnimation();
-                is_navigating = FALSE;
-            }
-            llSetTimerEvent(0.0);
-            current_state = "IDLE";
-        }
-        else
-        {
-            loadWaypointConfig();
-        }
+        loadWaypointConfig();
     }
 }
 
@@ -1384,33 +1323,6 @@ default
     
     timer()
     {
-        // Handle confirmation timeout first
-        if (confirmation_listener != 0)
-        {
-            llListenRemove(confirmation_listener);
-            confirmation_listener = 0;
-            
-            if (pending_action_user != NULL_KEY && pending_action != "")
-            {
-                llRegionSayTo(pending_action_user, 0, "Confirmation timed out.");
-            }
-            
-            pending_action = "";
-            pending_action_data = "";
-            pending_action_user = NULL_KEY;
-            
-            // Resume timer if we were in an active state
-            if (current_state != "IDLE" && current_state != "INTERACTING")
-            {
-                llSetTimerEvent(5.0);
-            }
-            else
-            {
-                llSetTimerEvent(0.0);
-            }
-            return;
-        }
-        
         if (current_state == "WALKING")
         {
             // Check for navigation timeout
@@ -1494,17 +1406,7 @@ default
         }
         else if (msg == "TOGGLE_WANDER")
         {
-            string action_desc;
-            if (wander_enabled)
-            {
-                action_desc = "Disable autonomous wandering?";
-            }
-            else
-            {
-                action_desc = "Enable autonomous wandering?";
-            }
-            
-            showConfirmationDialog(llGetOwner(), "TOGGLE_WANDER", action_desc, "");
+            toggleWander();
         }
         else if (llSubStringIndex(msg, "WHAT_DOING") == 0)
         {
@@ -1514,35 +1416,6 @@ default
                 response += " at " + llList2String(waypoint_configs, current_waypoint_index * 3 + 2);
             
             llMessageLinked(LINK_SET, LINK_ACTIVITY_UPDATE, response, NULL_KEY);
-        }
-    }
-    
-    listen(integer channel, string name, key id, string message)
-    {
-        if (channel == confirmation_channel)
-        {
-            llListenRemove(confirmation_listener);
-            confirmation_listener = 0;
-            llSetTimerEvent(0.0);
-            
-            if (message == "Yes")
-            {
-                executeConfirmedAction(pending_action, pending_action_data);
-            }
-            else
-            {
-                llRegionSayTo(id, 0, "Action cancelled.");
-            }
-            
-            pending_action = "";
-            pending_action_data = "";
-            pending_action_user = NULL_KEY;
-            
-            // Resume timer if we were in an active state
-            if (current_state != "IDLE" && current_state != "INTERACTING")
-            {
-                llSetTimerEvent(5.0);
-            }
         }
     }
     
@@ -1602,18 +1475,15 @@ default
         {
             if (llGetInventoryType("RoseConfig") == INVENTORY_NOTECARD)
             {
-                llOwnerSay("Config updated, reloading...");
                 llResetScript();
             }
             else if (llGetInventoryType(WAYPOINT_CONFIG_NOTECARD) == INVENTORY_NOTECARD)
             {
-                llOwnerSay("Waypoint config updated, reloading...");
                 llResetScript();
             }
             else
             {
                 // Rescan animations when inventory changes
-                llOwnerSay("Inventory changed, rescanning...");
                 scanInventoryAnimations();
             }
         }
