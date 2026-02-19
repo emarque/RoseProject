@@ -76,7 +76,8 @@ return [type, name, orientation, time, anim, attachJson];
 
 **Key Optimizations:**
 - Use individual variables instead of incremental list building
-- Limit substring searches to reasonable bounds (e.g., `typeStart + 20` searches from typeStart to position typeStart+20)
+- Limit substring searches to reasonable bounds by extracting bounded substrings first (e.g., `llGetSubString(json, typeStart, typeStart + 20)` creates a 21-character substring for searching)
+- Cache extracted substrings to avoid redundant operations
 - Initialize all values with defaults to avoid conditional list operations
 - Single `return` statement with complete list built at once
 - Changed from `> 7` condition to `!= -1` to avoid offset arithmetic confusion

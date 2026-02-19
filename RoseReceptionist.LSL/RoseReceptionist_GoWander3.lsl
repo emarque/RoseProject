@@ -264,8 +264,9 @@ list parseWaypointJSON(string json)
     if (orientStart != -1)
     {
         orientStart += 15;
-        integer commaPos = llSubStringIndex(llGetSubString(json, orientStart, orientStart + 10), ",");
-        integer bracePos = llSubStringIndex(llGetSubString(json, orientStart, orientStart + 10), "}");
+        string orientSubstr = llGetSubString(json, orientStart, orientStart + 10);
+        integer commaPos = llSubStringIndex(orientSubstr, ",");
+        integer bracePos = llSubStringIndex(orientSubstr, "}");
         integer endPos = commaPos;
         if (endPos == -1 || (bracePos != -1 && bracePos < endPos))
             endPos = bracePos;
@@ -282,8 +283,9 @@ list parseWaypointJSON(string json)
     if (timeStart != -1)
     {
         timeStart += 7;
-        integer commaPos = llSubStringIndex(llGetSubString(json, timeStart, timeStart + 10), ",");
-        integer bracePos = llSubStringIndex(llGetSubString(json, timeStart, timeStart + 10), "}");
+        string timeSubstr = llGetSubString(json, timeStart, timeStart + 10);
+        integer commaPos = llSubStringIndex(timeSubstr, ",");
+        integer bracePos = llSubStringIndex(timeSubstr, "}");
         integer endPos = commaPos;
         if (endPos == -1 || (bracePos != -1 && bracePos < endPos))
             endPos = bracePos;
