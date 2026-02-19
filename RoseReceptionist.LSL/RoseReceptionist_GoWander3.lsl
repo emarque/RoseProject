@@ -797,6 +797,9 @@ processWaypoint(key wpKey, vector wpPos)
     // Try to get configuration from notecard first
     list configData = getWaypointConfig(wpNumber);
     
+    // Declare attachments_json outside conditional blocks for proper scope
+    string attachments_json = "";
+    
     // If we have parsed config data, use it directly
     if (llGetListLength(configData) > 0)
     {
@@ -806,7 +809,7 @@ processWaypoint(key wpKey, vector wpPos)
         activity_orientation = llList2Integer(configData, 2);
         activity_duration = llList2Integer(configData, 3);
         activity_animation = llList2String(configData, 4);
-        string attachments_json = llList2String(configData, 5);
+        attachments_json = llList2String(configData, 5);
     }
     else if (wpDesc != "")
     {
@@ -817,7 +820,7 @@ processWaypoint(key wpKey, vector wpPos)
         activity_orientation = llList2Integer(wpData, 2);
         activity_duration = llList2Integer(wpData, 3);
         activity_animation = llList2String(wpData, 4);
-        string attachments_json = llList2String(wpData, 5);
+        attachments_json = llList2String(wpData, 5);
     }
     else
     {
@@ -827,7 +830,7 @@ processWaypoint(key wpKey, vector wpPos)
         activity_orientation = -1;
         activity_duration = 0;
         activity_animation = "";
-        string attachments_json = "";
+        attachments_json = "";
     }
     
     // Notify Main script of current activity (only if not transient or has a name)
