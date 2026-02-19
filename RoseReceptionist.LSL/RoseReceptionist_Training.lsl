@@ -404,8 +404,19 @@ showAttachablesMenu()
 
 outputWaypointConfig()
 {
-    string json = generateWaypointJSON();
-    string output = "WAYPOINT" + (string)waypoint_counter + "=" + (string)current_tap_position + "|" + json;
+    string output;
+    
+    if (wp_type == "transient")
+    {
+        // Transient waypoints: just position, no JSON
+        output = "WAYPOINT" + (string)waypoint_counter + "=" + (string)current_tap_position;
+    }
+    else
+    {
+        // Linger/Sit waypoints: position + JSON
+        string json = generateWaypointJSON();
+        output = "WAYPOINT" + (string)waypoint_counter + "=" + (string)current_tap_position + "|" + json;
+    }
     
     // Add newline before output for easier copy/paste to notecard
     llOwnerSay("\n" + output);
@@ -595,7 +606,9 @@ default
                 if (message == "Transient")
                 {
                     wp_type = "transient";
-                    showNameInput();
+                    wp_name = "";  // No name needed for transient
+                    // Transient waypoints don't need names - output immediately
+                    outputWaypointConfig();
                 }
                 else if (message == "Linger")
                 {

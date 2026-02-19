@@ -14,6 +14,7 @@ public class ChatController : ControllerBase
     private readonly PersonalityService _personalityService;
     private readonly ConversationContextService _conversationService;
     private readonly MenuService _menuService;
+    private readonly ActivityService _activityService;
     private readonly ILogger<ChatController> _logger;
 
     public ChatController(
@@ -21,12 +22,14 @@ public class ChatController : ControllerBase
         PersonalityService personalityService,
         ConversationContextService conversationService,
         MenuService menuService,
+        ActivityService activityService,
         ILogger<ChatController> logger)
     {
         _claudeService = claudeService;
         _personalityService = personalityService;
         _conversationService = conversationService;
         _menuService = menuService;
+        _activityService = activityService;
         _logger = logger;
     }
 
@@ -128,6 +131,17 @@ public class ChatController : ControllerBase
             }
 
             // Not a menu navigation - proceed with normal AI chat
+            // Get recent activities for context
+            var currentActivityFromDb = await _activityService.GetCurrentActivityAsync();
+            var recentActivities = await _activityService.GetRecentActivitiesAsync(2);
+            
+            // Use provided currentActivity if available, otherwise use from database
+            var currentActivityContext = !string.IsNullOrEmpty(request.CurrentActivity) 
+                ? request.CurrentActivity 
+                : _activityService.FormatCurrentActivityForContext(currentActivityFromDb);
+            
+            var recentActivitiesContext = _activityService.FormatRecentActivitiesForContext(recentActivities);
+            
             var aiResponse = await _claudeService.GetResponseAsync(
                 request.Message,
                 request.AvatarKey,
@@ -137,8 +151,9 @@ public class ChatController : ControllerBase
                 accessEntry.FavoriteDrink,
                 request.SessionId,
                 request.Transcript,
-                request.CurrentActivity,
-                request.AvailableActions);
+                currentActivityContext,
+                request.AvailableActions,
+                recentActivitiesContext);
 
             await _conversationService.SaveConversationAsync(
                 request.AvatarKey,

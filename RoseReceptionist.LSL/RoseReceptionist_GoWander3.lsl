@@ -44,7 +44,10 @@ string notecardName = "RoseConfig";
 key waypointConfigQuery;
 integer waypointConfigLine = 0;
 string WAYPOINT_CONFIG_NOTECARD = "[WPP]WaypointConfig";
-list waypoint_configs = []; // [wp_num, wp_pos, json_config, ...]
+// Waypoint storage format (variable length):
+// Transient: [wpNum, pos] (2 elements)
+// Linger/Sit: [wpNum, pos, type, name, orientation, time, animation, attachments] (8 elements)
+list waypoint_configs = [];
 
 // Animation lists discovered from inventory
 list available_walk_animations = [];    // "anim walk" animations for navigation
@@ -610,44 +613,99 @@ loadWaypointConfig()
     }
 }
 
-// Get waypoint position by waypoint number
-vector getWaypointPosition(integer waypoint_number)
+// Helper function to get the size of a waypoint entry
+integer getWaypointEntrySize(integer index)
 {
-    integer i;
-    for (i = 0; i < llGetListLength(waypoint_configs); i += 3)
+    // Check if this is a transient waypoint (only 2 elements) or linger/sit (8 elements)
+    if (index + 2 < llGetListLength(waypoint_configs))
+    {
+        string typeField = llList2String(waypoint_configs, index + 2);
+        // If element at index+2 is a type string, it's a linger/sit waypoint (8 elements)
+        if (typeField == "transient" || typeField == "linger" || typeField == "sit")
+        {
+            return 8; // [wpNum, pos, type, name, orientation, time, animation, attachments]
+        }
+    }
+    return 2; // Transient: [wpNum, pos]
+}
+
+// Helper function to count total waypoints
+integer getWaypointCount()
+{
+    integer count = 0;
+    integer i = 0;
+    while (i < llGetListLength(waypoint_configs))
+    {
+        count++;
+        i += getWaypointEntrySize(i);
+    }
+    return count;
+}
+
+// Helper function to find waypoint by number and return its index in the list
+integer findWaypointListIndex(integer waypoint_number)
+{
+    integer i = 0;
+    while (i < llGetListLength(waypoint_configs))
     {
         if (llList2Integer(waypoint_configs, i) == waypoint_number)
         {
-            return llList2Vector(waypoint_configs, i + 1);
+            return i;
         }
+        i += getWaypointEntrySize(i);
+    }
+    return -1;
+}
+
+// Get waypoint position by waypoint number
+vector getWaypointPosition(integer waypoint_number)
+{
+    integer idx = findWaypointListIndex(waypoint_number);
+    if (idx != -1)
+    {
+        return llList2Vector(waypoint_configs, idx + 1);
     }
     return ZERO_VECTOR;
 }
 
 // Get waypoint configuration by waypoint number
-string getWaypointConfig(integer waypoint_number)
+// Returns parsed list: [type, name, orientation, time, animation, attachments]
+// For transient waypoints, returns: ["transient", "", -1, 0, "", ""]
+list getWaypointConfig(integer waypoint_number)
 {
-    integer i;
-    for (i = 0; i < llGetListLength(waypoint_configs); i += 3)
+    integer idx = findWaypointListIndex(waypoint_number);
+    if (idx == -1)
     {
-        if (llList2Integer(waypoint_configs, i) == waypoint_number)
-        {
-            return llList2String(waypoint_configs, i + 2);
-        }
+        return [];
     }
-    return "";
+    
+    integer entrySize = getWaypointEntrySize(idx);
+    if (entrySize == 2)
+    {
+        // Transient waypoint - return default values
+        return ["transient", "", -1, 0, "", ""];
+    }
+    else
+    {
+        // Linger/sit waypoint - return parsed data
+        // Extract: [type, name, orientation, time, animation, attachments]
+        return llList2List(waypoint_configs, idx + 2, idx + 7);
+    }
 }
 
-// Find the index of a waypoint by its number
+// Find the index of a waypoint by its number (logical index, not list index)
 integer findWaypointIndexByNumber(integer waypoint_number)
 {
-    integer i;
-    for (i = 0; i < llGetListLength(waypoint_configs); i += 3)
+    integer listIdx = 0;
+    integer waypointIdx = 0;
+    while (listIdx < llGetListLength(waypoint_configs))
     {
-        if (llList2Integer(waypoint_configs, i) == waypoint_number)
+        if (llList2Integer(waypoint_configs, listIdx) == waypoint_number)
         {
-            return i / 3;  // Return the waypoint index
+            return waypointIdx;
         }
+        listIdx += getWaypointEntrySize(listIdx);
+        waypointIdx++;
     }
     return -1;  // Not found
 }
@@ -702,7 +760,7 @@ integer isWaypointBlocked(vector target_pos)
 // Find next unblocked waypoint starting from current index
 integer findNextUnblockedWaypoint()
 {
-    integer num_waypoints = llGetListLength(waypoint_configs) / 3;
+    integer num_waypoints = getWaypointCount();
     if (num_waypoints == 0) return -1;
     
     integer start_index = current_waypoint_index;
@@ -717,12 +775,24 @@ integer findNextUnblockedWaypoint()
             current_waypoint_index = 0;
         }
         
-        vector test_pos = llList2Vector(waypoint_configs, current_waypoint_index * 3 + 1);
-        
-        if (!isWaypointBlocked(test_pos))
+        // Get waypoint number at this index
+        integer listIdx = 0;
+        integer wpIdx = 0;
+        while (wpIdx < current_waypoint_index && listIdx < llGetListLength(waypoint_configs))
         {
-            // Found an unblocked waypoint
-            return current_waypoint_index;
+            listIdx += getWaypointEntrySize(listIdx);
+            wpIdx++;
+        }
+        
+        if (listIdx < llGetListLength(waypoint_configs))
+        {
+            vector test_pos = llList2Vector(waypoint_configs, listIdx + 1);
+            
+            if (!isWaypointBlocked(test_pos))
+            {
+                // Found an unblocked waypoint
+                return current_waypoint_index;
+            }
         }
         
         checked++;
@@ -768,44 +838,68 @@ processWaypoint(key wpKey, vector wpPos)
     else
     {
         // No prim key, use position to find waypoint number from configs
-        integer i;
-        for (i = 0; i < llGetListLength(waypoint_configs); i += 3)
+        integer listIdx = 0;
+        while (listIdx < llGetListLength(waypoint_configs))
         {
-            vector configPos = llList2Vector(waypoint_configs, i + 1);
+            vector configPos = llList2Vector(waypoint_configs, listIdx + 1);
             if (llVecDist(configPos, wpPos) < WAYPOINT_POSITION_TOLERANCE)
             {
-                wpNumber = llList2Integer(waypoint_configs, i);
+                wpNumber = llList2Integer(waypoint_configs, listIdx);
                 wpName = "Waypoint" + (string)wpNumber;
                 jump found;
             }
+            listIdx += getWaypointEntrySize(listIdx);
         }
         @found;
     }
     
     // Try to get configuration from notecard first
-    string configJson = getWaypointConfig(wpNumber);
+    list configData = getWaypointConfig(wpNumber);
     
-    // Fall back to prim description if no notecard config
-    if (configJson == "" && wpDesc != "")
+    // If we have parsed config data, use it directly
+    if (llGetListLength(configData) > 0)
     {
-        configJson = wpDesc;
+        // Use pre-parsed data: [type, name, orientation, time, animation, attachments]
+        activity_type = llList2String(configData, 0);
+        current_activity_name = llList2String(configData, 1);
+        activity_orientation = llList2Integer(configData, 2);
+        activity_duration = llList2Integer(configData, 3);
+        activity_animation = llList2String(configData, 4);
+        string attachments_json = llList2String(configData, 5);
+    }
+    else if (wpDesc != "")
+    {
+        // Fall back to prim description if no notecard config
+        list wpData = parseWaypointJSON(wpDesc);
+        activity_type = llList2String(wpData, 0);
+        current_activity_name = llList2String(wpData, 1);
+        activity_orientation = llList2Integer(wpData, 2);
+        activity_duration = llList2Integer(wpData, 3);
+        activity_animation = llList2String(wpData, 4);
+        string attachments_json = llList2String(wpData, 5);
+    }
+    else
+    {
+        // Default to transient with no name
+        activity_type = "transient";
+        current_activity_name = "";
+        activity_orientation = -1;
+        activity_duration = 0;
+        activity_animation = "";
+        string attachments_json = "";
     }
     
-    // Parse JSON configuration
-    list wpData = parseWaypointJSON(configJson);
+    // Notify Main script of current activity (only if not transient or has a name)
+    if (activity_type != "transient" && current_activity_name != "")
+    {
+        llMessageLinked(LINK_SET, LINK_ACTIVITY_UPDATE, current_activity_name, NULL_KEY);
+    }
     
-    activity_type = llList2String(wpData, 0);
-    current_activity_name = llList2String(wpData, 1);
-    activity_orientation = llList2Integer(wpData, 2);
-    activity_duration = llList2Integer(wpData, 3);
-    activity_animation = llList2String(wpData, 4);
-    string attachments_json = llList2String(wpData, 5);
-    
-    // Notify Main script of current activity
-    llMessageLinked(LINK_SET, LINK_ACTIVITY_UPDATE, current_activity_name, NULL_KEY);
-    
-    // Queue activity for batch logging
-    queueActivity(current_activity_name, activity_type, activity_duration);
+    // Queue activity for batch logging (skip transient waypoints)
+    if (activity_type != "transient")
+    {
+        queueActivity(current_activity_name, activity_type, activity_duration);
+    }
     activity_start_time = llGetUnixTime();
     
     // Handle different action types
@@ -879,7 +973,7 @@ moveToNextWaypoint()
         current_activity_id = "";
     }
     
-    integer num_waypoints = llGetListLength(waypoint_configs) / 3;
+    integer num_waypoints = getWaypointCount();
     if (num_waypoints == 0)
     {
         llOwnerSay("No waypoint configs available");
@@ -941,8 +1035,17 @@ moveToNextWaypoint()
     
     current_waypoint_index = found_index;
     
+    // Get waypoint number at current index
+    integer listIdx = 0;
+    integer wpIdx = 0;
+    while (wpIdx < current_waypoint_index && listIdx < llGetListLength(waypoint_configs))
+    {
+        listIdx += getWaypointEntrySize(listIdx);
+        wpIdx++;
+    }
+    integer wpNumber = llList2Integer(waypoint_configs, listIdx);
+    
     // Check if we completed a full loop (back to waypoint 0 or home)
-    integer wpNumber = llList2Integer(waypoint_configs, current_waypoint_index * 3);
     if (loop_started && wpNumber == 0 && HOME_WAYPOINT >= 0)
     {
         // Completed loop, return to home
@@ -962,9 +1065,18 @@ moveToNextWaypoint()
 // Extracted navigation logic from moveToNextWaypoint
 navigateToCurrentWaypoint()
 {
+    // Get waypoint position at current index
+    integer listIdx = 0;
+    integer wpIdx = 0;
+    while (wpIdx < current_waypoint_index && listIdx < llGetListLength(waypoint_configs))
+    {
+        listIdx += getWaypointEntrySize(listIdx);
+        wpIdx++;
+    }
+    
     // Use waypoint configs from notecard
-    integer wpNumber = llList2Integer(waypoint_configs, current_waypoint_index * 3);
-    current_target_pos = llList2Vector(waypoint_configs, current_waypoint_index * 3 + 1);
+    integer wpNumber = llList2Integer(waypoint_configs, listIdx);
+    current_target_pos = llList2Vector(waypoint_configs, listIdx + 1);
     current_target_key = NULL_KEY; // No prim keys, using positions only
     
     // Check if target is outside parcel boundary
@@ -976,7 +1088,7 @@ navigateToCurrentWaypoint()
         if (llList2Key(parcel_details, 0) != llList2Key(current_parcel, 0))
         {
             // Target is in different parcel, skip this waypoint
-            current_waypoint_index = (current_waypoint_index + 1) % (llGetListLength(waypoint_configs) / 3);
+            current_waypoint_index = (current_waypoint_index + 1) % getWaypointCount();
             moveToNextWaypoint();
             return;
         }
@@ -1195,18 +1307,35 @@ default
                             string numStr = llGetSubString(configKey, 8, -1);
                             integer wpNum = (integer)numStr;
                             
-                            // Parse position and JSON: <x,y,z>|{json}
+                            // Parse position and JSON: <x,y,z>|{json} or just <x,y,z> for transient
                             integer pipePos = llSubStringIndex(value, "|");
                             if (pipePos != -1)
                             {
                                 string posStr = llGetSubString(value, 0, pipePos - 1);
                                 string jsonStr = llGetSubString(value, pipePos + 1, -1);
                                 vector pos = (vector)posStr;
-                                waypoint_configs += [wpNum, pos, jsonStr];
+                                
+                                // Parse JSON to check if transient
+                                list wpData = parseWaypointJSON(jsonStr);
+                                string wpType = llList2String(wpData, 0);
+                                
+                                if (wpType == "transient")
+                                {
+                                    // Store only wpNum and position for transient waypoints
+                                    waypoint_configs += [wpNum, pos];
+                                }
+                                else
+                                {
+                                    // Store full parsed data for linger/sit waypoints
+                                    // Format: [wpNum, pos, type, name, orientation, time, animation, attachments]
+                                    waypoint_configs += [wpNum, pos] + wpData;
+                                }
                             }
                             else
                             {
-                                llOwnerSay("Malformed line: " + configKey);
+                                // No pipe means just a position vector (transient by default)
+                                vector pos = (vector)value;
+                                waypoint_configs += [wpNum, pos];
                             }
                         }
                     }
@@ -1219,7 +1348,34 @@ default
             else
             {
                 // Finished reading waypoint config
-                integer configCount = llGetListLength(waypoint_configs) / 3;
+                // Count waypoints (variable length entries)
+                integer configCount = 0;
+                integer i;
+                for (i = 0; i < llGetListLength(waypoint_configs); )
+                {
+                    integer wpNum = llList2Integer(waypoint_configs, i);
+                    vector wpPos = llList2Vector(waypoint_configs, i + 1);
+                    
+                    // Check if next element is a string (type field) or integer (next wpNum)
+                    if (i + 2 < llGetListLength(waypoint_configs))
+                    {
+                        string nextElem = llList2String(waypoint_configs, i + 2);
+                        // If it's "transient", "linger", or "sit", it's a non-transient waypoint (8 elements)
+                        if (nextElem == "transient" || nextElem == "linger" || nextElem == "sit")
+                        {
+                            i += 8; // Skip 8 elements for linger/sit
+                        }
+                        else
+                        {
+                            i += 2; // Skip 2 elements for transient
+                        }
+                    }
+                    else
+                    {
+                        i += 2; // Last entry, must be transient
+                    }
+                    configCount++;
+                }
                 llOwnerSay("Loaded " + (string)configCount + " waypoints");
                 initializeNavigation();
             }
