@@ -1083,8 +1083,9 @@ navigateToCurrentWaypoint()
         time_to_travel = 0.14;
     }
     
-    // Calculate rotation to face direction of travel (2-axis only, no diagonal lean)
-    //vector direction = llVecNorm(offset);
+    // Calculate and set rotation to face direction of travel
+    float fDistance = llVecDist(<current_target_pos.x, current_target_pos.y, 0>, <start_pos.x, start_pos.y, 0>); // XY Distance, disregarding height differences
+    llSetRot(llRotBetween(<1,0,0>, llVecNorm(<fDistance, 0, current_target_pos.z - start_pos.z>)) * llRotBetween(<1,0,0>, llVecNorm(<current_target_pos.x - start_pos.x, current_target_pos.y - start_pos.y, 0>)));
     
     // Start a random walk animation before navigating
     startWalkAnimation();
@@ -1423,6 +1424,21 @@ default
                     timer_interval = (float)time_until_duration;
                 }
                 llSetTimerEvent(timer_interval);
+            }
+            else
+            {
+                // Fallback: ensure timer keeps checking for completion
+                // This handles SITTING and LINGERING with specific animations
+                integer time_until_duration = activity_duration - elapsed;
+                float timer_interval = 5.0; // Check every 5 seconds
+                if (time_until_duration < 5)
+                {
+                    timer_interval = (float)time_until_duration;
+                }
+                if (timer_interval > 0.0)
+                {
+                    llSetTimerEvent(timer_interval);
+                }
             }
         }
         
