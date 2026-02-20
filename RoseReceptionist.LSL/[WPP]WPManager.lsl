@@ -794,6 +794,12 @@ default
                         {
                             integer wpNum = (integer)llGetSubString(configKey, llStringLength(WAYPOINT_PREFIX), -1);
                             
+                            // Decode HTML entities that may have been introduced during copy/paste
+                            value = llReplaceSubString(value, "&lt;", "<", 0);
+                            value = llReplaceSubString(value, "&gt;", ">", 0);
+                            value = llReplaceSubString(value, "&amp;", "&", 0);
+                            value = llReplaceSubString(value, "&quot;", "\"", 0);
+                            
                             integer pipePos = llSubStringIndex(value, "|");
                             if (pipePos != -1)
                             {
