@@ -8,7 +8,7 @@ The GoWander3 script grew to 54KB, causing stack heap collisions in LSL's 64KB m
 
 Split the monolithic script into two specialized scripts that communicate via link messages:
 
-### 1. RoseReceptionist_GoWander3_Navigator.lsl (7KB)
+### 1. [WPP]WPNavigator.lsl (7KB)
 **Purpose**: Handle actual navigation and movement mechanics
 
 **Responsibilities**:
@@ -30,7 +30,7 @@ Split the monolithic script into two specialized scripts that communicate via li
 - `current_target_pos`: Target destination
 - `navigation_start_time`: For timeout detection
 
-### 2. RoseReceptionist_GoWander3_Manager.lsl (31KB)
+### 2. [WPP]WPManager.lsl (old 2-script version) (31KB)
 **Purpose**: Determine next waypoint and manage activities
 
 **Responsibilities**:

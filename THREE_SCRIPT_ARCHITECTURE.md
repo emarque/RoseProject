@@ -12,7 +12,7 @@ Total: 40KB (vs original 54KB monolith)
 
 ## Script Responsibilities
 
-### 1. RoseReceptionist_GoWander3_Navigator.lsl (7KB)
+### 1. [WPP]WPNavigator.lsl (7KB)
 
 **Purpose**: Execute physical movement via keyframed motion
 
@@ -36,7 +36,7 @@ Total: 40KB (vs original 54KB monolith)
 - `LINK_NAV_ARRIVED (3001)` - Arrived at destination
 - `LINK_NAV_TIMEOUT (3002)` - Navigation failed/timed out
 
-### 2. RoseReceptionist_GoWander3_Waypoint.lsl (26KB)
+### 2. [WPP]WPManager.lsl (26KB)
 
 **Purpose**: Determine next waypoint and manage activity state
 
@@ -68,7 +68,7 @@ Total: 40KB (vs original 54KB monolith)
 - `LINK_ACTIVITY_COMPLETE (3011)` - Tell Reporter activity done
 - `LINK_ACTIVITY_UPDATE (2001)` - Tell Main script activity name
 
-### 3. RoseReceptionist_GoWander3_Reporter.lsl (7KB)
+### 3. [WPP]WPReporter.lsl (7KB)
 
 **Purpose**: Track and report activities to API
 
@@ -243,12 +243,12 @@ Animation inventory scanned by:
 
 1. **Remove old scripts** (if present):
    - `RoseReceptionist_GoWander3.lsl` (54KB monolith)
-   - `RoseReceptionist_GoWander3_Manager.lsl` (31KB 2-script version)
+   - `[WPP]WPManager.lsl (old 2-script version)` (31KB 2-script version)
 
 2. **Add new scripts** to object:
-   - `RoseReceptionist_GoWander3_Navigator.lsl`
-   - `RoseReceptionist_GoWander3_Waypoint.lsl`
-   - `RoseReceptionist_GoWander3_Reporter.lsl`
+   - `[WPP]WPNavigator.lsl`
+   - `[WPP]WPManager.lsl`
+   - `[WPP]WPReporter.lsl`
 
 3. **Verify** in chat:
    - "Navigator ready"

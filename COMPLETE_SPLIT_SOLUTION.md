@@ -46,7 +46,7 @@
 
 ### Script Breakdown
 
-#### 1. RoseReceptionist_GoWander3_Navigator.lsl (7KB)
+#### 1. [WPP]WPNavigator.lsl (7KB)
 **Single Responsibility**: Execute physical movement
 
 **Contains**:
@@ -62,7 +62,7 @@
 - API calls
 - Configuration reading
 
-#### 2. RoseReceptionist_GoWander3_Waypoint.lsl (26KB)
+#### 2. [WPP]WPManager.lsl (26KB)
 **Single Responsibility**: Determine next waypoint and manage activity state
 
 **Contains**:
@@ -79,7 +79,7 @@
 - API communication (Reporter handles)
 - Walk animations (Navigator handles)
 
-#### 3. RoseReceptionist_GoWander3_Reporter.lsl (7KB)
+#### 3. [WPP]WPReporter.lsl (7KB)
 **Single Responsibility**: Track and report activities via API
 
 **Contains**:
@@ -191,21 +191,21 @@ Shared Messages:
 - `RoseReceptionist_GoWander3.lsl` (54KB)
 
 **Add**:
-- `RoseReceptionist_GoWander3_Navigator.lsl` (7KB)
-- `RoseReceptionist_GoWander3_Waypoint.lsl` (26KB)
-- `RoseReceptionist_GoWander3_Reporter.lsl` (7KB)
+- `[WPP]WPNavigator.lsl` (7KB)
+- `[WPP]WPManager.lsl` (26KB)
+- `[WPP]WPReporter.lsl` (7KB)
 
 ### From 2-Script Split
 
 **Remove**:
-- `RoseReceptionist_GoWander3_Manager.lsl` (31KB)
+- `[WPP]WPManager.lsl (old 2-script version)` (31KB)
 
 **Keep**:
-- `RoseReceptionist_GoWander3_Navigator.lsl` (7KB)
+- `[WPP]WPNavigator.lsl` (7KB)
 
 **Add**:
-- `RoseReceptionist_GoWander3_Waypoint.lsl` (26KB)
-- `RoseReceptionist_GoWander3_Reporter.lsl` (7KB)
+- `[WPP]WPManager.lsl` (26KB)
+- `[WPP]WPReporter.lsl` (7KB)
 
 ## Verification
 
