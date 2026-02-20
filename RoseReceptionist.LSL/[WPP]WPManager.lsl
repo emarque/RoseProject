@@ -790,7 +790,8 @@ default
                         string configKey = llStringTrim(llGetSubString(data, 0, equals - 1), STRING_TRIM);
                         string value = llStringTrim(llGetSubString(data, equals + 1, -1), STRING_TRIM);
                         
-                        if (llSubStringIndex(configKey, WAYPOINT_PREFIX) == 0)
+                        // Case-insensitive WAYPOINT prefix check (handles WAYPOINT0 vs Waypoint0)
+                        if (llSubStringIndex(llToUpper(configKey), llToUpper(WAYPOINT_PREFIX)) == 0)
                         {
                             integer wpNum = (integer)llGetSubString(configKey, llStringLength(WAYPOINT_PREFIX), -1);
                             
