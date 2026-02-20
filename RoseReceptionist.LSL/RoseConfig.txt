@@ -16,8 +16,12 @@ WANDER_ENABLED=TRUE
 WANDER_RADIUS=10
 WANDER_SENSOR_RANGE=50
 WANDER_SCAN_INTERVAL=5
-HOME_POSITION=<128, 128, 25>
-HOME_DURATION=300
+
+# Home Waypoint Configuration
+# Waypoint number to use as "home" (default: 0)
+# Rose will stay at this waypoint for HOME_DURATION_MINUTES when wandering begins
+HOME_WAYPOINT=0
+HOME_DURATION_MINUTES=0
 
 # Navigation Configuration
 # Movement speed in meters per second

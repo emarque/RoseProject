@@ -2,8 +2,11 @@
 // Activity Reporter - Tracks and reports activities via API
 
 // CONFIGURATION
+// ⚠️ IMPORTANT: Update API_KEY with your actual API key from the Rose Receptionist API
+// Get your API key from your Rose Receptionist dashboard
+// Without a valid API key, all API calls will fail with HTTP 401 errors
 string API_ENDPOINT = "https://rosercp.pantherplays.com/api";
-string API_KEY = "your-api-key-here";
+string API_KEY = "your-api-key-here";  // ⚠️ CHANGE THIS TO YOUR ACTUAL API KEY
 
 string SHIFT_START_TIME = "09:00";
 string SHIFT_END_TIME = "17:00";
@@ -144,6 +147,14 @@ default
     {
         llOwnerSay("Reporter ready");
         last_batch_time = llGetUnixTime();
+        
+        // Warn if API_KEY is not configured
+        if (API_KEY == "your-api-key-here")
+        {
+            llOwnerSay("⚠️ WARNING: API_KEY not configured!");
+            llOwnerSay("Update API_KEY in [WPP]WPReporter script");
+            llOwnerSay("All API calls will fail with HTTP 401");
+        }
     }
     
     timer()
@@ -207,6 +218,13 @@ default
         {
             // Success - could parse response to get activity ID if needed
             // For now, just silent success
+        }
+        else if (status == 401)
+        {
+            // Unauthorized - invalid API key
+            llOwnerSay("⚠️ HTTP 401: Invalid API key");
+            llOwnerSay("Please update API_KEY in [WPP]WPReporter script");
+            llOwnerSay("Get your API key from Rose Receptionist dashboard");
         }
         else if (status == 429)
         {

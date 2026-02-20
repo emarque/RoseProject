@@ -21,9 +21,14 @@ integer STAY_IN_PARCEL = TRUE;
 integer DOOR_DETECTION_ENABLED = TRUE;
 string DOOR_NAME_PATTERN = "door";
 
-integer HOME_WAYPOINT = -1;
+integer HOME_WAYPOINT = 0;  // Default to waypoint 0
 integer HOME_DURATION_MINUTES = 0;
 integer loading_config = FALSE;  // Flag to prevent reset during config load
+
+// Watchdog timer to prevent getting stuck
+integer WATCHDOG_TIMEOUT = 600;  // 10 minutes maximum in any state
+integer last_state_change_time = 0;
+string last_known_state = "IDLE";
 
 // Notecard reading
 key notecardQuery;
@@ -125,6 +130,45 @@ stopStandAnimation()
     {
         llMessageLinked(LINK_SET, 0, "STOP_ANIM:" + current_stand_animation, NULL_KEY);
         current_stand_animation = "";
+    }
+}
+
+// Update state and reset watchdog timer
+updateState(string new_state)
+{
+    if (new_state != current_state)
+    {
+        current_state = new_state;
+        last_state_change_time = llGetUnixTime();
+        last_known_state = new_state;
+    }
+}
+
+// Check if stuck in same state too long
+checkWatchdog()
+{
+    integer time_in_state = llGetUnixTime() - last_state_change_time;
+    
+    if (time_in_state > WATCHDOG_TIMEOUT)
+    {
+        llOwnerSay("⚠️ WATCHDOG: Stuck in " + current_state + " for " + (string)time_in_state + "s - forcing next waypoint");
+        
+        // Stop any animations
+        if (activity_animation != "")
+        {
+            llMessageLinked(LINK_SET, 0, "STOP_ANIM:" + activity_animation, NULL_KEY);
+        }
+        stopStandAnimation();
+        
+        // Force move to next waypoint
+        moveToNextWaypoint();
+        
+        // If still stuck after attempting to move, reset the script
+        if (time_in_state > WATCHDOG_TIMEOUT * 2)
+        {
+            llOwnerSay("⚠️ WATCHDOG: Still stuck after " + (string)time_in_state + "s - resetting script");
+            llResetScript();
+        }
     }
 }
 
@@ -247,7 +291,7 @@ toggleWander()
     
     if (!wander_enabled)
     {
-        current_state = "IDLE";
+        updateState("IDLE");
         llSetTimerEvent(0.0);
     }
     else
@@ -435,7 +479,7 @@ processWaypoint(vector wpPos)
             timer_interval = (float)activity_duration;
         }
         llSetTimerEvent(timer_interval);
-        current_state = "LINGERING";
+        updateState("LINGERING");
     }
     else if (activity_type == "sit")
     {
@@ -444,7 +488,7 @@ processWaypoint(vector wpPos)
             llMessageLinked(LINK_SET, 0, "PLAY_ANIM:" + activity_animation, NULL_KEY);
         }
         
-        current_state = "SITTING";
+        updateState("SITTING");
         
         if (activity_duration > 0)
         {
@@ -568,7 +612,7 @@ navigateToCurrentWaypoint()
     }
     
     // Tell Navigator to go to this position
-    current_state = "WALKING";
+    updateState("WALKING");
     llMessageLinked(LINK_SET, LINK_NAV_GOTO, (string)target_pos, (key)((string)wpNumber));
 }
 
@@ -578,6 +622,10 @@ default
     state_entry()
     {
         llOwnerSay("Waypoint Manager ready");
+        
+        // Initialize watchdog timer
+        last_state_change_time = llGetUnixTime();
+        updateState("IDLE");
         
         if (llGetInventoryType(notecardName) == INVENTORY_NOTECARD)
         {
@@ -595,6 +643,9 @@ default
     
     timer()
     {
+        // Always check watchdog first
+        checkWatchdog();
+        
         if (current_state == "LINGERING" || current_state == "SITTING")
         {
             integer elapsed = llGetUnixTime() - activity_start_time;
@@ -680,12 +731,12 @@ default
         {
             if (msg == "GREETING" || msg == "CHATTING")
             {
-                current_state = "INTERACTING";
+                updateState("INTERACTING");
                 llSetTimerEvent(0.0);
             }
             else if (msg == "DONE")
             {
-                current_state = "IDLE";
+                updateState("IDLE");
                 moveToNextWaypoint();
             }
         }
