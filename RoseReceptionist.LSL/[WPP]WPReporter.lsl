@@ -1,4 +1,4 @@
-// RoseReceptionist_GoWander3_Reporter.lsl
+// [WPP]WPReporter.lsl
 // Activity Reporter - Tracks and reports activities via API
 
 // CONFIGURATION

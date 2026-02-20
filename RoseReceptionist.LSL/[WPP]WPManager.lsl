@@ -1,4 +1,4 @@
-// RoseReceptionist_GoWander3_Waypoint.lsl
+// [WPP]WPManager.lsl
 // Waypoint Manager - Determines next waypoint and manages activity state
 
 // CONFIGURATION
@@ -63,9 +63,6 @@ string activity_animation = "";
 integer activity_orientation = -1;
 integer activity_duration = 0;
 integer activity_start_time = 0;
-
-// Constants
-float DEG_TO_RAD = 0.0174532925;
 
 // Animation scanning
 scanInventoryAnimations()
@@ -787,12 +784,12 @@ default
                     integer equals = llSubStringIndex(data, "=");
                     if (equals != -1)
                     {
-                        string key = llStringTrim(llGetSubString(data, 0, equals - 1), STRING_TRIM);
+                        string configKey = llStringTrim(llGetSubString(data, 0, equals - 1), STRING_TRIM);
                         string value = llStringTrim(llGetSubString(data, equals + 1, -1), STRING_TRIM);
                         
-                        if (llSubStringIndex(key, WAYPOINT_PREFIX) == 0)
+                        if (llSubStringIndex(configKey, WAYPOINT_PREFIX) == 0)
                         {
-                            integer wpNum = (integer)llGetSubString(key, llStringLength(WAYPOINT_PREFIX), -1);
+                            integer wpNum = (integer)llGetSubString(configKey, llStringLength(WAYPOINT_PREFIX), -1);
                             
                             integer pipePos = llSubStringIndex(value, "|");
                             if (pipePos != -1)

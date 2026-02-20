@@ -1,4 +1,4 @@
-// RoseReceptionist_GoWander3_Navigator.lsl
+// [WPP]WPNavigator.lsl
 // Navigation Engine - Handles actual movement via keyframed motion
 
 // CONFIGURATION
