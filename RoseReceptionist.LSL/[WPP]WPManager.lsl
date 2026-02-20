@@ -23,6 +23,7 @@ string DOOR_NAME_PATTERN = "door";
 
 integer HOME_WAYPOINT = -1;
 integer HOME_DURATION_MINUTES = 0;
+integer loading_config = FALSE;  // Flag to prevent reset during config load
 
 // Notecard reading
 key notecardQuery;
@@ -259,6 +260,7 @@ loadWaypointConfig()
 {
     if (llGetInventoryType(WAYPOINT_CONFIG_NOTECARD) == INVENTORY_NOTECARD)
     {
+        loading_config = TRUE;  // Set flag to prevent reset during load
         llOwnerSay("Loading wp config: " + WAYPOINT_CONFIG_NOTECARD);
         waypointConfigLine = 0;
         waypoint_configs = [];
@@ -839,6 +841,7 @@ default
             }
             else
             {
+                loading_config = FALSE;  // Clear flag - load complete
                 integer configCount = getWaypointCount();
                 integer listLen = llGetListLength(waypoint_configs);
                 llOwnerSay((string)configCount + " waypoints (list len=" + (string)listLen + ")");
@@ -851,6 +854,13 @@ default
     {
         if (change & CHANGED_INVENTORY)
         {
+            // Don't reset while loading config - let it complete first
+            if (loading_config)
+            {
+                return;
+            }
+            
+            // Otherwise, always reload configs on inventory change
             if (llGetInventoryType("RoseConfig") == INVENTORY_NOTECARD)
             {
                 llResetScript();
