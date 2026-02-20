@@ -460,9 +460,10 @@ moveToNextWaypoint()
     }
     
     integer num_waypoints = getWaypointCount();
+    integer listLen = llGetListLength(waypoint_configs);
     if (num_waypoints == 0)
     {
-        llOwnerSay("No wp configs");
+        llOwnerSay("No wp configs (list len=" + (string)listLen + ")");
         llSetTimerEvent(30.0);
         return;
     }
@@ -839,7 +840,8 @@ default
             else
             {
                 integer configCount = getWaypointCount();
-                llOwnerSay((string)configCount + " waypoints");
+                integer listLen = llGetListLength(waypoint_configs);
+                llOwnerSay((string)configCount + " waypoints (list len=" + (string)listLen + ")");
                 moveToNextWaypoint();
             }
         }
