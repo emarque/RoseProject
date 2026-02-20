@@ -23,6 +23,9 @@ integer STAY_IN_PARCEL = TRUE;  // Prevent character from leaving parcel
 // Animation variation
 integer STAND_ANIMATION_INTERVAL = 5;  // seconds between stand animation changes
 
+// Safety: Maximum activity duration (prevents getting stuck)
+integer MAX_ACTIVITY_DURATION = 300;  // 5 minutes max per activity
+
 // Door blocking detection
 integer DOOR_DETECTION_ENABLED = TRUE;
 string DOOR_NAME_PATTERN = "door";  // Case-insensitive partial match
@@ -1389,7 +1392,21 @@ default
             // Check if activity duration is complete
             integer elapsed = llGetUnixTime() - activity_start_time;
             
-            if (elapsed >= activity_duration)
+            // Safety check: force completion if exceeded maximum duration
+            if (elapsed >= MAX_ACTIVITY_DURATION)
+            {
+                llOwnerSay("Activity timeout: " + current_activity_name);
+                if (activity_animation != "")
+                {
+                    llMessageLinked(LINK_SET, 0, "STOP_ANIM:" + activity_animation, NULL_KEY);
+                }
+                else
+                {
+                    stopStandAnimation();
+                }
+                moveToNextWaypoint();
+            }
+            else if (elapsed >= activity_duration)
             {
                 // Duration completed - stop animations and move to next waypoint
                 llOwnerSay("Activity done: " + current_activity_name);
