@@ -878,11 +878,13 @@ processWaypoint(key wpKey, vector wpPos)
     if (activity_type == "transient")
     {
         // Pass through without stopping
-        //llSleep(1.0);
         moveToNextWaypoint();
     }
     else if (activity_type == "linger")
     {
+        // Diagnostic: track activity start
+        llOwnerSay("Activity: " + current_activity_name + " (" + (string)activity_duration + "s)");
+        
         // Stop and perform actions
         
         // Face direction if specified
@@ -1390,6 +1392,7 @@ default
             if (elapsed >= activity_duration)
             {
                 // Duration completed - stop animations and move to next waypoint
+                llOwnerSay("Activity done: " + current_activity_name);
                 
                 // Stop animation
                 if (activity_animation != "")
