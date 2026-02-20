@@ -7,9 +7,9 @@ integer NAVIGATION_TIMEOUT = 60; // seconds
 float WAYPOINT_POSITION_TOLERANCE = .0125; // meters
 
 // Link messages - Communication with Manager script
-integer LINK_NAV_GOTO = 3000;      // Manager->Navigator: Go to position (key=wpKey, msg=position)
-integer LINK_NAV_ARRIVED = 3001;   // Navigator->Manager: Arrived at waypoint
-integer LINK_NAV_TIMEOUT = 3002;   // Navigator->Manager: Navigation timeout
+integer LINK_NAV_GOTO = 4000;      // Manager->Navigator: Go to position (key=wpKey, msg=position)
+integer LINK_NAV_ARRIVED = 4001;   // Navigator->Manager: Arrived at waypoint
+integer LINK_NAV_TIMEOUT = 4002;   // Navigator->Manager: Navigation timeout
 integer LINK_WANDERING_STATE = 2000; // From other scripts (greeting/chatting)
 
 // STATE VARIABLES
@@ -73,12 +73,9 @@ startWalkAnimation()
         walk_anim = default_walk;
     }
     
-    // Check if animation exists
-    if (llGetInventoryType(walk_anim) == INVENTORY_ANIMATION)
-    {
-        llStartObjectAnimation(walk_anim);
-        current_walk_animation = walk_anim;
-    }
+    // Send link message to Animation script to play the animation
+    llMessageLinked(LINK_SET, 0, "PLAY_ANIM:" + walk_anim, NULL_KEY);
+    current_walk_animation = walk_anim;
 }
 
 // Stop the current walk animation
@@ -86,7 +83,8 @@ stopWalkAnimation()
 {
     if (current_walk_animation != "")
     {
-        llStopObjectAnimation(current_walk_animation);
+        // Send link message to Animation script to stop the animation
+        llMessageLinked(LINK_SET, 0, "STOP_ANIM:" + current_walk_animation, NULL_KEY);
         current_walk_animation = "";
     }
 }

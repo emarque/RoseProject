@@ -5,9 +5,9 @@
 string WAYPOINT_PREFIX = "Waypoint";
 
 // Link messages - Navigation
-integer LINK_NAV_GOTO = 3000;      // Waypoint->Navigator: Go to position
-integer LINK_NAV_ARRIVED = 3001;   // Navigator->Waypoint: Arrived at waypoint
-integer LINK_NAV_TIMEOUT = 3002;   // Navigator->Waypoint: Navigation timeout
+integer LINK_NAV_GOTO = 4000;      // Waypoint->Navigator: Go to position
+integer LINK_NAV_ARRIVED = 4001;   // Navigator->Waypoint: Arrived at waypoint
+integer LINK_NAV_TIMEOUT = 4002;   // Navigator->Waypoint: Navigation timeout
 
 // Link messages - Activity Reporting
 integer LINK_ACTIVITY_START = 3010;    // Waypoint->Reporter: Activity started
