@@ -70,6 +70,11 @@ integer activity_orientation = -1;
 integer activity_duration = 0;
 integer activity_start_time = 0;
 
+// Sit target finding
+key sit_target_key = NULL_KEY;
+integer sit_permissions_granted = FALSE;
+integer waiting_for_sit_sensor = FALSE;
+
 // Animation scanning
 scanInventoryAnimations()
 {
@@ -449,10 +454,11 @@ processWaypoint(vector wpPos)
     {
         llOwnerSay("Activity: " + current_activity_name + " (" + (string)activity_duration + "s)");
         
-        // Face direction if specified
+        // Face direction if specified - apply rotation around Z-axis only to keep upright
         if (activity_orientation != -1)
         {
             float radians = activity_orientation * DEG_TO_RAD;
+            // Rotation around Z-axis only (yaw), keeping pitch=0 and roll=0
             rotation rot = llEuler2Rot(<0, 0, radians>);
             llSetRot(rot);
         }
@@ -483,6 +489,13 @@ processWaypoint(vector wpPos)
     }
     else if (activity_type == "sit")
     {
+        llOwnerSay("Activity: " + current_activity_name + " (" + (string)activity_duration + "s)");
+        
+        // Find closest prim labeled "sit"
+        waiting_for_sit_sensor = TRUE;
+        llSensorRepeat("", NULL_KEY, PASSIVE|ACTIVE, 10.0, PI, 1.0);
+        
+        // Play animation if specified
         if (activity_animation != "")
         {
             llMessageLinked(LINK_SET, 0, "PLAY_ANIM:" + activity_animation, NULL_KEY);
@@ -661,7 +674,16 @@ default
                 {
                     stopStandAnimation();
                 }
+                
+                // Unsit if we're sitting
+                if (current_state == "SITTING")
+                {
+                    llUnSit(llGetOwner());
+                    sit_target_key = NULL_KEY;
+                }
+                
                 moveToNextWaypoint();
+                return;  // Prevent double call to moveToNextWaypoint
             }
             else if (elapsed >= activity_duration)
             {
@@ -674,6 +696,13 @@ default
                 else
                 {
                     stopStandAnimation();
+                }
+                
+                // Unsit if we're sitting
+                if (current_state == "SITTING")
+                {
+                    llUnSit(llGetOwner());
+                    sit_target_key = NULL_KEY;
                 }
                 
                 moveToNextWaypoint();
@@ -904,6 +933,71 @@ default
                 integer listLen = llGetListLength(waypoint_configs);
                 llOwnerSay((string)configCount + " waypoints (list len=" + (string)listLen + ")");
                 moveToNextWaypoint();
+            }
+        }
+    }
+    
+    sensor(integer num)
+    {
+        if (!waiting_for_sit_sensor) return;
+        
+        // Find closest prim with "sit" in its name
+        integer i;
+        float closest_distance = 999.0;
+        key closest_key = NULL_KEY;
+        
+        for (i = 0; i < num; i++)
+        {
+            string name = llToLower(llDetectedName(i));
+            if (llSubStringIndex(name, "sit") != -1)
+            {
+                float distance = llVecDist(llGetPos(), llDetectedPos(i));
+                if (distance < closest_distance)
+                {
+                    closest_distance = distance;
+                    closest_key = llDetectedKey(i);
+                }
+            }
+        }
+        
+        if (closest_key != NULL_KEY)
+        {
+            sit_target_key = closest_key;
+            llOwnerSay("Found sit target: " + llKey2Name(sit_target_key));
+            
+            // Request permissions to change links (needed for sitting)
+            llRequestPermissions(llGetOwner(), PERMISSION_TRIGGER_ANIMATION | PERMISSION_TAKE_CONTROLS);
+        }
+        else
+        {
+            llOwnerSay("No 'sit' prim found nearby");
+        }
+        
+        waiting_for_sit_sensor = FALSE;
+        llSensorRemove();
+    }
+    
+    no_sensor()
+    {
+        if (waiting_for_sit_sensor)
+        {
+            llOwnerSay("No 'sit' prim found nearby");
+            waiting_for_sit_sensor = FALSE;
+            llSensorRemove();
+        }
+    }
+    
+    run_time_permissions(integer perms)
+    {
+        if (perms & PERMISSION_TRIGGER_ANIMATION)
+        {
+            sit_permissions_granted = TRUE;
+            
+            // Now sit on the target
+            if (sit_target_key != NULL_KEY)
+            {
+                llSit(sit_target_key);
+                llOwnerSay("Sitting on target");
             }
         }
     }
