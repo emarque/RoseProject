@@ -810,6 +810,20 @@ default
                                     waypoint_configs += [wpNum, pos] + wpData;
                                 }
                             }
+                            else if (llGetSubString(value, 0, 0) == "{")
+                            {
+                                list wpData = parseWaypointJSON(value);
+                                string wpType = llList2String(wpData, 0);
+                                
+                                if (wpType == "transient")
+                                {
+                                    waypoint_configs += [wpNum, ZERO_VECTOR];
+                                }
+                                else
+                                {
+                                    waypoint_configs += [wpNum, ZERO_VECTOR] + wpData;
+                                }
+                            }
                             else
                             {
                                 vector pos = (vector)value;
