@@ -2,11 +2,10 @@
 // Activity Reporter - Tracks and reports activities via API
 
 // CONFIGURATION
-// ⚠️ IMPORTANT: Update API_KEY with your actual API key from the Rose Receptionist API
+// API_KEY is now read from RoseConfig.txt notecard
 // Get your API key from your Rose Receptionist dashboard
-// Without a valid API key, all API calls will fail with HTTP 401 errors
 string API_ENDPOINT = "https://rosercp.pantherplays.com/api";
-string API_KEY = "your-api-key-here";  // ⚠️ CHANGE THIS TO YOUR ACTUAL API KEY
+string API_KEY = "your-api-key-here";  // Will be loaded from RoseConfig.txt
 
 string SHIFT_START_TIME = "09:00";
 string SHIFT_END_TIME = "17:00";
@@ -16,6 +15,11 @@ string DAILY_REPORT_TIME = "17:05";
 integer LINK_ACTIVITY_START = 3010;    // Waypoint->Reporter: Activity started (msg=name, id=type|duration)
 integer LINK_ACTIVITY_COMPLETE = 3011; // Waypoint->Reporter: Activity completed (msg=name)
 integer LINK_ACTIVITY_QUERY = 3012;    // Other->Reporter: Get current activity
+
+// Config reading
+string notecardName = "RoseConfig";
+key notecardQuery;
+integer notecardLine = 0;
 
 // STATE VARIABLES
 string current_activity_name = "idle";
@@ -148,12 +152,23 @@ default
         llOwnerSay("Reporter ready");
         last_batch_time = llGetUnixTime();
         
-        // Warn if API_KEY is not configured
-        if (API_KEY == "your-api-key-here")
+        // Read config from notecard
+        if (llGetInventoryType(notecardName) == INVENTORY_NOTECARD)
         {
-            llOwnerSay("⚠️ WARNING: API_KEY not configured!");
-            llOwnerSay("Update API_KEY in [WPP]WPReporter script");
-            llOwnerSay("All API calls will fail with HTTP 401");
+            llOwnerSay("Reading config...");
+            notecardLine = 0;
+            notecardQuery = llGetNotecardLine(notecardName, notecardLine);
+        }
+        else
+        {
+            llOwnerSay("No RoseConfig found, using default API_KEY");
+            // Warn if API_KEY is not configured
+            if (API_KEY == "your-api-key-here")
+            {
+                llOwnerSay("⚠️ WARNING: API_KEY not configured!");
+                llOwnerSay("Add API_KEY to RoseConfig notecard");
+                llOwnerSay("All API calls will fail with HTTP 401");
+            }
         }
     }
     
@@ -223,7 +238,7 @@ default
         {
             // Unauthorized - invalid API key
             llOwnerSay("⚠️ HTTP 401: Invalid API key");
-            llOwnerSay("Please update API_KEY in [WPP]WPReporter script");
+            llOwnerSay("Please update API_KEY in RoseConfig notecard");
             llOwnerSay("Get your API key from Rose Receptionist dashboard");
         }
         else if (status == 429)
@@ -248,6 +263,65 @@ default
         {
             // Log other HTTP errors
             llOwnerSay("HTTP " + (string)status);
+        }
+    }
+    
+    dataserver(key query_id, string data)
+    {
+        if (query_id == notecardQuery)
+        {
+            if (data != EOF)
+            {
+                data = llStringTrim(data, STRING_TRIM);
+                
+                // Skip empty lines and comments
+                if (data != "" && llGetSubString(data, 0, 0) != "#")
+                {
+                    // Skip section headers
+                    if (llGetSubString(data, 0, 0) != "[")
+                    {
+                        integer equals = llSubStringIndex(data, "=");
+                        if (equals != -1)
+                        {
+                            string configKey = llStringTrim(llGetSubString(data, 0, equals - 1), STRING_TRIM);
+                            string value = llStringTrim(llGetSubString(data, equals + 1, -1), STRING_TRIM);
+                            
+                            if (configKey == "API_KEY")
+                            {
+                                API_KEY = value;
+                            }
+                            else if (configKey == "SHIFT_START_TIME")
+                            {
+                                SHIFT_START_TIME = value;
+                            }
+                            else if (configKey == "SHIFT_END_TIME")
+                            {
+                                SHIFT_END_TIME = value;
+                            }
+                            else if (configKey == "DAILY_REPORT_TIME")
+                            {
+                                DAILY_REPORT_TIME = value;
+                            }
+                        }
+                    }
+                }
+                
+                ++notecardLine;
+                notecardQuery = llGetNotecardLine(notecardName, notecardLine);
+            }
+            else
+            {
+                // Config reading complete
+                llOwnerSay("Config loaded");
+                
+                // Warn if API_KEY is still not configured
+                if (API_KEY == "your-api-key-here")
+                {
+                    llOwnerSay("⚠️ WARNING: API_KEY not configured in RoseConfig!");
+                    llOwnerSay("Add API_KEY to RoseConfig notecard");
+                    llOwnerSay("All API calls will fail with HTTP 401");
+                }
+            }
         }
     }
     

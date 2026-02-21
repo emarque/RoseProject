@@ -2,9 +2,11 @@
 # This notecard should be placed in the same object as the Rose scripts
 
 # =============================================================================
-# SECURITY NOTE: API credentials are configured in the script (secure)
-# This notecard contains only user-customizable settings
+# API Configuration
+# Get your API key from your Rose Receptionist dashboard
+# Without a valid API key, all API calls will fail with HTTP 401 errors
 # =============================================================================
+API_KEY=your-api-key-here
 
 # Owner UUIDs (one per line)
 # Add your Second Life avatar UUID here
