@@ -22,7 +22,7 @@ integer DOOR_DETECTION_ENABLED = TRUE;
 string DOOR_NAME_PATTERN = "door";
 
 integer HOME_WAYPOINT = 0;  // Default to waypoint 0
-integer HOME_DURATION_MINUTES = 0;
+integer HOME_DURATION_MINUTES = 5;
 integer loading_config = FALSE;  // Flag to prevent reset during config load
 
 // Watchdog timer to prevent getting stuck
@@ -73,6 +73,7 @@ integer activity_start_time = 0;
 // Sit target finding
 key sit_target_key = NULL_KEY;
 integer waiting_for_sit_sensor = FALSE;
+float buttOffset = 0.40;
 
 // Animation scanning
 scanInventoryAnimations()
@@ -428,6 +429,12 @@ processWaypoint(vector wpPos)
         attachments_json = "";
     }
     
+    if (wpNumber == HOME_WAYPOINT)
+    {
+        activity_duration = (HOME_DURATION_MINUTES * 60); // minutes to seconds
+        llOwnerSay("Duration set to: " + (string)(HOME_DURATION_MINUTES * 60) + "seconds");
+    }
+    
     // Notify other scripts
     if (activity_type != "transient" && current_activity_name != "")
     {
@@ -527,40 +534,40 @@ moveToNextWaypoint()
     }
     
     // Home position logic
-    if (HOME_WAYPOINT >= 0 && !loop_started)
-    {
-        integer home_index = findWaypointIndexByNumber(HOME_WAYPOINT);
-        if (home_index == -1)
-        {
-            llOwnerSay("Home wp " + (string)HOME_WAYPOINT + " not found");
-        }
-        else
-        {
-            current_waypoint_index = home_index;
-            at_home = TRUE;
-            home_start_time = llGetUnixTime();
-            loop_started = FALSE;
+//    if (HOME_WAYPOINT >= 0 && !loop_started)
+//    {
+//        integer home_index = findWaypointIndexByNumber(HOME_WAYPOINT);
+//        if (home_index == -1)
+//        {
+//            llOwnerSay("Home wp " + (string)HOME_WAYPOINT + " not found");
+//        }
+//        else
+//        {
+//            current_waypoint_index = home_index;
+//            at_home = TRUE;
+//            home_start_time = llGetUnixTime();
+//            loop_started = FALSE;
             
-            navigateToCurrentWaypoint();
-            return;
-        }
-    }
+//            navigateToCurrentWaypoint();
+//            return;
+//        }
+//    }
     
     // Check if at home
-    if (at_home && HOME_DURATION_MINUTES > 0)
-    {
-        integer elapsed_minutes = (llGetUnixTime() - home_start_time) / 60;
-        if (elapsed_minutes < HOME_DURATION_MINUTES)
-        {
-            llSetTimerEvent(60.0);
-            return;
-        }
-        else
-        {
-            at_home = FALSE;
-            loop_started = TRUE;
-        }
-    }
+//    if (at_home && HOME_DURATION_MINUTES > 0)
+//    {
+//        integer elapsed_minutes = (llGetUnixTime() - home_start_time) / 60;
+//        if (elapsed_minutes < HOME_DURATION_MINUTES)
+//        {
+//            llSetTimerEvent(60.0);
+//            return;
+//        }
+//        else
+//        {
+//            at_home = FALSE;
+//            loop_started = TRUE;
+//        }
+//    }
     
     // Find next non-blocked waypoint
     integer attempts = 0;
@@ -637,8 +644,8 @@ sit()
         if (details != [])
         {
             vector pos = llList2Vector(details, 0);
-            llOwnerSay("pos.z = " + (string)pos.z + " new pos.z=" + (string)(pos.z+0.6));
-            pos.z = pos.z + 0.6; //The "butt" offset
+            //llOwnerSay("pos.z = " + (string)pos.z + " new pos.z=" + (string)(pos.z+0.6));
+            pos.z = pos.z + buttOffset; //The "butt" offset
             rotation rot = llList2Rot(details, 1);
             llSetPos(pos);
             llSetRot(rot);
