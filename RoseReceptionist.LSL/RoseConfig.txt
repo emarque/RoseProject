@@ -47,6 +47,8 @@ STAY_IN_PARCEL=TRUE
 SHIFT_START_TIME=09:00
 SHIFT_END_TIME=17:00
 DAILY_REPORT_TIME=17:05
+# Set timezone here (defaults to SLT & will handle DST automatically)
+TIMEZONE_OFFSET=-8
 
 # Night time start (when night activities begin)
 # Format: HH:MM in 24-hour format
