@@ -144,6 +144,40 @@ default
         {
             playAnimation(msg);
         }
+        // Handle PLAY_ANIM and STOP_ANIM string commands from other scripts
+        else if (num == 0)
+        {
+            if (llSubStringIndex(msg, "PLAY_ANIM:") == 0)
+            {
+                // Extract animation name after "PLAY_ANIM:" prefix
+                string anim_name = llGetSubString(msg, 10, -1);
+                
+                // Check if animation exists in inventory
+                if (llGetInventoryType(anim_name) == INVENTORY_ANIMATION)
+                {
+                    // Stop current animation if different
+                    if (current_animation != "" && current_animation != anim_name)
+                    {
+                        llStopObjectAnimation(current_animation);
+                    }
+                    
+                    llStartObjectAnimation(anim_name);
+                    current_animation = anim_name;
+                }
+            }
+            else if (llSubStringIndex(msg, "STOP_ANIM:") == 0)
+            {
+                // Extract animation name after "STOP_ANIM:" prefix
+                string anim_name = llGetSubString(msg, 10, -1);
+                llStopObjectAnimation(anim_name);
+                
+                // Clear current animation if it matches
+                if (current_animation == anim_name)
+                {
+                    current_animation = "";
+                }
+            }
+        }
     }
     
     timer()
