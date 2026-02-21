@@ -492,7 +492,7 @@ processWaypoint(vector wpPos)
         
         // Find closest prim labeled "sit"
         waiting_for_sit_sensor = TRUE;
-        llSensorRepeat("", NULL_KEY, PASSIVE|ACTIVE, 10.0, PI, 1.0);
+        llSensorRepeat("", NULL_KEY, PASSIVE|ACTIVE, 2.0, PI, 1.0);
         
         // Play animation if specified
         if (activity_animation != "")
@@ -696,7 +696,6 @@ default
                 // Unsit if we're sitting
                 if (current_state == "SITTING")
                 {
-                    llUnSit(llGetOwner());
                     sit_target_key = NULL_KEY;
                 }
                 
@@ -719,7 +718,6 @@ default
                 // Unsit if we're sitting
                 if (current_state == "SITTING")
                 {
-                    llUnSit(llGetOwner());
                     sit_target_key = NULL_KEY;
                 }
                 
