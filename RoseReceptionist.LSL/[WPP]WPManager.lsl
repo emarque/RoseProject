@@ -65,7 +65,11 @@ integer last_stand_change_time = 0;
 
 // Activity data
 string activity_type = "";
-string activity_animation = "";
+string activity_animation = "";  // Single animation (backward compatibility)
+list activity_animations = [];    // List of animations to cycle through
+integer activity_anim_interval = 30;  // Seconds between animation changes
+integer current_anim_index = 0;   // Current animation in the list
+integer last_anim_change_time = 0; // When we last changed animation
 integer activity_orientation = -1;
 integer activity_duration = 0;
 integer activity_start_time = 0;
@@ -83,6 +87,7 @@ string current_schedule_period = "";  // "WORK", "AFTER_WORK", "NIGHT"
 integer last_schedule_check = 0;
 integer SCHEDULE_CHECK_INTERVAL = 60;  // Check every 60 seconds
 integer shift_end_announced = FALSE;  // Track if we've said goodbye
+integer schedule_transition_teleport = FALSE;  // Flag to teleport after config load
 
 // Config notecards for different periods
 string WORK_CONFIG = "[WPP]WaypointConfig";
@@ -230,6 +235,9 @@ switchWaypointConfig(string period)
         
         // Reset waypoint index
         current_waypoint_index = -1;
+        
+        // Set flag to teleport to first waypoint after config loads
+        schedule_transition_teleport = TRUE;
         
         // Load new config
         loadWaypointConfig();
@@ -409,15 +417,50 @@ list parseWaypointJSON(string json)
         }
     }
     
-    string anim = "";
-    integer animStart = llSubStringIndex(json, "\"animation\":\"");
-    if (animStart != -1)
+    // Parse animations (support both array and single string)
+    string animationsStr = "";
+    integer animsStart = llSubStringIndex(json, "\"animations\":[");
+    if (animsStart != -1)
     {
-        animStart += 13;
-        integer animEnd = llSubStringIndex(llGetSubString(json, animStart, animStart + 50), "\"");
-        if (animEnd != -1)
+        // New format: array of animations
+        animsStart += 14;
+        integer animsEnd = llSubStringIndex(llGetSubString(json, animsStart, animsStart + 300), "]");
+        if (animsEnd != -1)
         {
-            anim = llGetSubString(json, animStart, animStart + animEnd - 1);
+            animationsStr = llGetSubString(json, animsStart, animsStart + animsEnd - 1);
+        }
+    }
+    else
+    {
+        // Old format: single animation string (backward compatibility)
+        integer animStart = llSubStringIndex(json, "\"animation\":\"");
+        if (animStart != -1)
+        {
+            animStart += 13;
+            integer animEnd = llSubStringIndex(llGetSubString(json, animStart, animStart + 50), "\"");
+            if (animEnd != -1)
+            {
+                animationsStr = llGetSubString(json, animStart, animStart + animEnd - 1);
+            }
+        }
+    }
+    
+    // Parse animInterval (default 30 seconds)
+    integer animInterval = 30;
+    integer intervalStart = llSubStringIndex(json, "\"animInterval\":");
+    if (intervalStart != -1)
+    {
+        intervalStart += 15;
+        string intervalSubstr = llGetSubString(json, intervalStart, intervalStart + 10);
+        integer commaPos = llSubStringIndex(intervalSubstr, ",");
+        integer bracePos = llSubStringIndex(intervalSubstr, "}");
+        integer endPos = commaPos;
+        if (endPos == -1 || (bracePos != -1 && bracePos < endPos))
+            endPos = bracePos;
+        
+        if (endPos != -1)
+        {
+            animInterval = (integer)llGetSubString(intervalSubstr, 0, endPos - 1);
         }
     }
     
@@ -437,7 +480,8 @@ list parseWaypointJSON(string json)
         }
     }
     
-    return [type, name, orientation, time, anim, attachJson];
+    // Return: type, name, orientation, time, animationsStr, animInterval, attachJson
+    return [type, name, orientation, time, animationsStr, animInterval, attachJson];
 }
 
 toggleWander()
@@ -489,10 +533,62 @@ integer getWaypointEntrySize(integer listIdx)
     {
         if (llGetListEntryType(waypoint_configs, listIdx + 2) == TYPE_STRING)
         {
-            return 8;
+            // Check if this is new format (9 elements) or old format (8 elements)
+            // New format: wpNum, pos, type, name, orientation, time, animationsStr, animInterval, attachJson
+            // Old format: wpNum, pos, type, name, orientation, time, anim, attachJson
+            if (listIdx + 8 < llGetListLength(waypoint_configs) &&
+                llGetListEntryType(waypoint_configs, listIdx + 7) == TYPE_INTEGER)
+            {
+                return 9;  // New format with animInterval
+            }
+            return 8;  // Old format
         }
     }
     return 2;
+}
+
+// Parse animations string into list
+list parseAnimationsList(string animStr)
+{
+    list result = [];
+    
+    if (animStr == "") return result;
+    
+    // Check if it's a comma-separated list (from JSON array)
+    if (llSubStringIndex(animStr, ",") != -1)
+    {
+        // Parse each animation from the comma-separated list
+        list parts = llParseString2List(animStr, [","], []);
+        integer i;
+        for (i = 0; i < llGetListLength(parts); i++)
+        {
+            string anim = llStringTrim(llList2String(parts, i), STRING_TRIM);
+            // Remove quotes if present
+            if (llGetSubString(anim, 0, 0) == "\"")
+            {
+                anim = llGetSubString(anim, 1, -2);
+            }
+            if (anim != "")
+            {
+                result += [anim];
+            }
+        }
+    }
+    else
+    {
+        // Single animation - just trim and remove quotes
+        animStr = llStringTrim(animStr, STRING_TRIM);
+        if (llGetSubString(animStr, 0, 0) == "\"")
+        {
+            animStr = llGetSubString(animStr, 1, -2);
+        }
+        if (animStr != "")
+        {
+            result = [animStr];
+        }
+    }
+    
+    return result;
 }
 
 // Count waypoints
@@ -519,13 +615,26 @@ list getWaypointConfig(integer wpNumber)
         if (wpNum == wpNumber)
         {
             integer entrySize = getWaypointEntrySize(listIdx);
-            if (entrySize == 8)
+            if (entrySize == 9)
             {
+                // New format with animations list and animInterval
                 return [llList2String(waypoint_configs, listIdx + 2),
                         llList2String(waypoint_configs, listIdx + 3),
                         llList2Integer(waypoint_configs, listIdx + 4),
                         llList2Integer(waypoint_configs, listIdx + 5),
                         llList2String(waypoint_configs, listIdx + 6),
+                        llList2Integer(waypoint_configs, listIdx + 7),
+                        llList2String(waypoint_configs, listIdx + 8)];
+            }
+            else if (entrySize == 8)
+            {
+                // Old format - convert to new format with default animInterval
+                return [llList2String(waypoint_configs, listIdx + 2),
+                        llList2String(waypoint_configs, listIdx + 3),
+                        llList2Integer(waypoint_configs, listIdx + 4),
+                        llList2Integer(waypoint_configs, listIdx + 5),
+                        llList2String(waypoint_configs, listIdx + 6),
+                        30,  // Default animInterval
                         llList2String(waypoint_configs, listIdx + 7)];
             }
             return [];
@@ -577,8 +686,22 @@ processWaypoint(vector wpPos)
         current_activity_name = llList2String(configData, 1);
         activity_orientation = llList2Integer(configData, 2);
         activity_duration = llList2Integer(configData, 3);
-        activity_animation = llList2String(configData, 4);
-        attachments_json = llList2String(configData, 5);
+        string animationsStr = llList2String(configData, 4);
+        activity_anim_interval = llList2Integer(configData, 5);
+        attachments_json = llList2String(configData, 6);
+        
+        // Parse animations list
+        activity_animations = parseAnimationsList(animationsStr);
+        if (llGetListLength(activity_animations) > 0)
+        {
+            activity_animation = llList2String(activity_animations, 0);
+            current_anim_index = 0;
+            last_anim_change_time = llGetUnixTime();
+        }
+        else
+        {
+            activity_animation = "";
+        }
     }
     else
     {
@@ -587,6 +710,8 @@ processWaypoint(vector wpPos)
         activity_orientation = -1;
         activity_duration = 0;
         activity_animation = "";
+        activity_animations = [];
+        activity_anim_interval = 30;
         attachments_json = "";
     }
     
@@ -791,9 +916,63 @@ navigateToCurrentWaypoint()
         }
     }
     
-    // Tell Navigator to go to this position
-    updateState("WALKING");
-    llMessageLinked(LINK_SET, LINK_NAV_GOTO, (string)target_pos, (key)((string)wpNumber));
+    // Check if this is a schedule transition teleport
+    if (schedule_transition_teleport)
+    {
+        schedule_transition_teleport = FALSE;
+        
+        // Use llSetRegionPos for instant teleport
+        llOwnerSay("Teleporting to first waypoint of new schedule");
+        
+        // llSetRegionPos can move up to 10m per call
+        // For longer distances, we need multiple calls
+        vector current_pos = llGetPos();
+        vector distance_vec = target_pos - current_pos;
+        float distance = llVecMag(distance_vec);
+        
+        if (distance > 10.0)
+        {
+            // Need multiple jumps
+            integer jumps = (integer)(distance / 10.0) + 1;
+            vector step = distance_vec / (float)jumps;
+            integer i;
+            for (i = 0; i < jumps; i++)
+            {
+                vector next_pos = current_pos + step * (float)(i + 1);
+                integer success = llSetRegionPos(next_pos);
+                if (!success)
+                {
+                    // Failed - fall back to normal navigation
+                    llOwnerSay("Teleport failed, using normal navigation");
+                    updateState("WALKING");
+                    llMessageLinked(LINK_SET, LINK_NAV_GOTO, (string)target_pos, (key)((string)wpNumber));
+                    return;
+                }
+            }
+        }
+        else
+        {
+            // Single jump
+            integer success = llSetRegionPos(target_pos);
+            if (!success)
+            {
+                // Failed - fall back to normal navigation
+                llOwnerSay("Teleport failed, using normal navigation");
+                updateState("WALKING");
+                llMessageLinked(LINK_SET, LINK_NAV_GOTO, (string)target_pos, (key)((string)wpNumber));
+                return;
+            }
+        }
+        
+        // Teleport successful - process waypoint immediately
+        processWaypoint(target_pos);
+    }
+    else
+    {
+        // Normal navigation
+        updateState("WALKING");
+        llMessageLinked(LINK_SET, LINK_NAV_GOTO, (string)target_pos, (key)((string)wpNumber));
+    }
 }
 
 sit()
@@ -918,6 +1097,43 @@ default
                     timer_interval = (float)time_until_duration;
                 }
                 llSetTimerEvent(timer_interval);
+            }
+            else if (llGetListLength(activity_animations) > 1 && activity_anim_interval > 0)
+            {
+                // Multiple animations - cycle through them
+                integer time_since_anim_change = llGetUnixTime() - last_anim_change_time;
+                if (time_since_anim_change >= activity_anim_interval)
+                {
+                    // Stop current animation
+                    if (activity_animation != "")
+                    {
+                        llMessageLinked(LINK_SET, 0, "STOP_ANIM:" + activity_animation, NULL_KEY);
+                    }
+                    
+                    // Move to next animation
+                    current_anim_index = (current_anim_index + 1) % llGetListLength(activity_animations);
+                    activity_animation = llList2String(activity_animations, current_anim_index);
+                    last_anim_change_time = llGetUnixTime();
+                    
+                    // Start new animation
+                    if (activity_animation != "")
+                    {
+                        llMessageLinked(LINK_SET, 0, "PLAY_ANIM:" + activity_animation, NULL_KEY);
+                    }
+                }
+                
+                // Set timer for next animation change
+                integer time_until_duration = activity_duration - elapsed;
+                integer time_until_next_anim = activity_anim_interval - time_since_anim_change;
+                float timer_interval = (float)time_until_next_anim;
+                if (time_until_duration < time_until_next_anim)
+                {
+                    timer_interval = (float)time_until_duration;
+                }
+                if (timer_interval > 0.0)
+                {
+                    llSetTimerEvent(timer_interval);
+                }
             }
             else
             {

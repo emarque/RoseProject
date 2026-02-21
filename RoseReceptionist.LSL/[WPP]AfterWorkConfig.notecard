@@ -19,7 +19,9 @@
 #   - name: Activity description (displayed and logged)
 #   - orientation: Direction to face in degrees (0=East, 90=North, 180=West, 270=South) [optional]
 #   - time: Duration in seconds (for linger/sit types) [optional]
-#   - animation: Animation name from inventory [optional]
+#   - animation: Single animation name [optional] (OLD FORMAT)
+#   - animations: Array of animation names to cycle through ["anim1","anim2","anim3"] [optional]
+#   - animInterval: Seconds between animation changes (default 30) [optional]
 #   - attachments: Array of {"item":"name","point":"attachPoint"} [optional]
 #
 # Example after-work activities:
@@ -27,11 +29,12 @@
 # Stop by the break room
 # WAYPOINT0={"type":"linger","name":"relaxing in break room","orientation":180,"time":300,"animation":"casual_stand","attachments":[{"item":"Coffee Mug","point":"RightHand"}]}
 
-# Social time with coworkers
-# WAYPOINT1={"type":"linger","name":"chatting with colleagues","orientation":90,"time":180,"animation":"friendly_talk","attachments":[]}
+# Social time with coworkers - varying animations
+# WAYPOINT1={"type":"linger","name":"chatting with colleagues","orientation":90,"time":300,"animations":["friendly_talk","laugh","gesture"],"animInterval":60}
 
 # Quick tidy up
 # WAYPOINT2={"type":"linger","name":"straightening up workspace","orientation":0,"time":120,"animation":"cleaning","attachments":[]}
 
 # Check personal messages
 # WAYPOINT3={"type":"sit","name":"checking messages","time":240,"animation":"typing","attachments":[]}
+

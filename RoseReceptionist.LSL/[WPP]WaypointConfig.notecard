@@ -18,7 +18,9 @@
 #   - name: Activity description (displayed and logged)
 #   - orientation: Direction to face in degrees (0=East, 90=North, 180=West, 270=South) [optional]
 #   - time: Duration in seconds (for linger/sit types) [optional]
-#   - animation: Animation name from inventory [optional]
+#   - animation: Single animation name [optional] (OLD FORMAT - use animations instead)
+#   - animations: Array of animation names to cycle through ["anim1","anim2","anim3"] [optional]
+#   - animInterval: Seconds between animation changes (default 30) [optional]
 #   - attachments: Array of {"item":"name","point":"attachPoint"} [optional]
 #
 # Example configurations:
@@ -26,7 +28,7 @@
 # Simple pass-through waypoint
 WAYPOINT0={"type":"transient","name":"hallway corner"}
 
-# Linger at reception desk
+# Linger at reception desk (single animation)
 WAYPOINT1={"type":"linger","name":"reception desk","orientation":0,"time":60,"animation":"stand_friendly","attachments":[]}
 
 # Water plants with item
@@ -34,3 +36,10 @@ WAYPOINT2={"type":"linger","name":"watering plants","orientation":90,"time":45,"
 
 # Sit at desk
 WAYPOINT3={"type":"sit","name":"desk work","time":120,"animation":"typing","attachments":[]}
+
+# NEW: Dancing with cycling animations (changes every 45 seconds)
+# WAYPOINT4={"type":"linger","name":"dancing","time":300,"animations":["anim dance 1","anim dance 2","anim dance 3"],"animInterval":45}
+
+# NEW: Exercise routine (changes every 30 seconds - default)
+# WAYPOINT5={"type":"linger","name":"exercising","time":180,"animations":["anim stretch","anim jumping jacks","anim yoga"]}
+
