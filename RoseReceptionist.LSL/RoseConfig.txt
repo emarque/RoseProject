@@ -43,9 +43,16 @@ DOOR_NAME_PATTERN=door
 STAY_IN_PARCEL=TRUE
 
 # Shift and Reporting Configuration
+# Work shift hours (when Rose is on duty as receptionist)
 SHIFT_START_TIME=09:00
 SHIFT_END_TIME=17:00
 DAILY_REPORT_TIME=17:05
+
+# Night time start (when night activities begin)
+# Format: HH:MM in 24-hour format
+# Activities after work shift but before night start are "after work" activities
+# Night activities run from NIGHT_START_TIME until next SHIFT_START_TIME
+NIGHT_START_TIME=22:00
 
 # Detection and Greeting
 GREETING_RANGE=10

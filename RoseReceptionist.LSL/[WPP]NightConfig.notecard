@@ -1,0 +1,37 @@
+# Rose Receptionist Night Waypoint Configuration
+# Activities performed during night hours (sleeping, home activities)
+# Active period: NIGHT_START_TIME to SHIFT_START_TIME (default 22:00-09:00)
+# 
+# Format: WAYPOINT<number>=<configuration>
+#
+# Three format options:
+#   1. JSON only: WAYPOINT0={"type":"transient","name":"hallway"}
+#      (Position will be read from waypoint prim in world)
+#   
+#   2. Position only: WAYPOINT0=<128.5, 128.5, 21.0>
+#      (For transient waypoints with no activity)
+#   
+#   3. Position + JSON: WAYPOINT0=<128.5, 128.5, 21.0>|{"type":"linger",...}
+#      (Explicit position override + activity configuration)
+# 
+# JSON fields:
+#   - type: "transient" (pass through) | "linger" (stay for duration) | "sit" (sit at location)
+#   - name: Activity description (displayed and logged)
+#   - orientation: Direction to face in degrees (0=East, 90=North, 180=West, 270=South) [optional]
+#   - time: Duration in seconds (for linger/sit types) [optional]
+#   - animation: Animation name from inventory [optional]
+#   - attachments: Array of {"item":"name","point":"attachPoint"} [optional]
+#
+# Example night activities:
+
+# Go to bedroom
+# WAYPOINT0={"type":"transient","name":"walking to bedroom"}
+
+# Get ready for bed
+# WAYPOINT1={"type":"linger","name":"getting ready for bed","orientation":270,"time":180,"animation":"casual_stand","attachments":[]}
+
+# Sleep (long duration - will loop until morning)
+# WAYPOINT2={"type":"sit","name":"sleeping","time":28800,"animation":"sleep","attachments":[]}
+
+# Morning routine
+# WAYPOINT3={"type":"linger","name":"morning routine","orientation":0,"time":300,"animation":"casual_stand","attachments":[]}

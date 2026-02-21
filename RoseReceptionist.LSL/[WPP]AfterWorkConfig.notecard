@@ -1,0 +1,37 @@
+# Rose Receptionist After-Work Waypoint Configuration
+# Activities performed after work shift ends but before going home for the night
+# Active period: SHIFT_END_TIME to NIGHT_START_TIME (default 17:00-22:00)
+# 
+# Format: WAYPOINT<number>=<configuration>
+#
+# Three format options:
+#   1. JSON only: WAYPOINT0={"type":"transient","name":"hallway"}
+#      (Position will be read from waypoint prim in world)
+#   
+#   2. Position only: WAYPOINT0=<128.5, 128.5, 21.0>
+#      (For transient waypoints with no activity)
+#   
+#   3. Position + JSON: WAYPOINT0=<128.5, 128.5, 21.0>|{"type":"linger",...}
+#      (Explicit position override + activity configuration)
+# 
+# JSON fields:
+#   - type: "transient" (pass through) | "linger" (stay for duration) | "sit" (sit at location)
+#   - name: Activity description (displayed and logged)
+#   - orientation: Direction to face in degrees (0=East, 90=North, 180=West, 270=South) [optional]
+#   - time: Duration in seconds (for linger/sit types) [optional]
+#   - animation: Animation name from inventory [optional]
+#   - attachments: Array of {"item":"name","point":"attachPoint"} [optional]
+#
+# Example after-work activities:
+
+# Stop by the break room
+# WAYPOINT0={"type":"linger","name":"relaxing in break room","orientation":180,"time":300,"animation":"casual_stand","attachments":[{"item":"Coffee Mug","point":"RightHand"}]}
+
+# Social time with coworkers
+# WAYPOINT1={"type":"linger","name":"chatting with colleagues","orientation":90,"time":180,"animation":"friendly_talk","attachments":[]}
+
+# Quick tidy up
+# WAYPOINT2={"type":"linger","name":"straightening up workspace","orientation":0,"time":120,"animation":"cleaning","attachments":[]}
+
+# Check personal messages
+# WAYPOINT3={"type":"sit","name":"checking messages","time":240,"animation":"typing","attachments":[]}

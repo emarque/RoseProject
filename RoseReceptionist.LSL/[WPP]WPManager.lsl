@@ -75,6 +75,167 @@ key sit_target_key = NULL_KEY;
 integer waiting_for_sit_sensor = FALSE;
 float buttOffset = 0.40;
 
+// Schedule-based waypoint system
+string SHIFT_START_TIME = "09:00";
+string SHIFT_END_TIME = "17:00";
+string NIGHT_START_TIME = "22:00";
+string current_schedule_period = "";  // "WORK", "AFTER_WORK", "NIGHT"
+integer last_schedule_check = 0;
+integer SCHEDULE_CHECK_INTERVAL = 60;  // Check every 60 seconds
+integer shift_end_announced = FALSE;  // Track if we've said goodbye
+
+// Config notecards for different periods
+string WORK_CONFIG = "[WPP]WaypointConfig";
+string AFTER_WORK_CONFIG = "[WPP]AfterWorkConfig";
+string NIGHT_CONFIG = "[WPP]NightConfig";
+string active_config_name = "";
+
+// Parse time string "HH:MM" to minutes since midnight
+integer parseTimeToMinutes(string time_str)
+{
+    integer colon = llSubStringIndex(time_str, ":");
+    if (colon == -1) return 0;
+    
+    integer hours = (integer)llGetSubString(time_str, 0, colon - 1);
+    integer minutes = (integer)llGetSubString(time_str, colon + 1, -1);
+    
+    return hours * 60 + minutes;
+}
+
+// Get current SL time in minutes since midnight
+integer getCurrentTimeMinutes()
+{
+    string timestamp = llGetTimestamp();
+    // Format: YYYY-MM-DDTHH:MM:SS.ffffffZ
+    integer tpos = llSubStringIndex(timestamp, "T");
+    string timepart = llGetSubString(timestamp, tpos + 1, tpos + 8);  // HH:MM:SS
+    
+    integer hours = (integer)llGetSubString(timepart, 0, 1);
+    integer minutes = (integer)llGetSubString(timepart, 3, 4);
+    
+    return hours * 60 + minutes;
+}
+
+// Determine which schedule period we're in
+string getCurrentSchedulePeriod()
+{
+    integer current_minutes = getCurrentTimeMinutes();
+    integer shift_start = parseTimeToMinutes(SHIFT_START_TIME);
+    integer shift_end = parseTimeToMinutes(SHIFT_END_TIME);
+    integer night_start = parseTimeToMinutes(NIGHT_START_TIME);
+    
+    // Handle the three periods
+    if (current_minutes >= shift_start && current_minutes < shift_end)
+    {
+        return "WORK";
+    }
+    else if (current_minutes >= shift_end && current_minutes < night_start)
+    {
+        return "AFTER_WORK";
+    }
+    else
+    {
+        // Night period (night_start to shift_start, possibly crossing midnight)
+        return "NIGHT";
+    }
+}
+
+// Get config notecard name for current period
+string getConfigForPeriod(string period)
+{
+    if (period == "WORK")
+    {
+        return WORK_CONFIG;
+    }
+    else if (period == "AFTER_WORK")
+    {
+        return AFTER_WORK_CONFIG;
+    }
+    else if (period == "NIGHT")
+    {
+        return NIGHT_CONFIG;
+    }
+    return WORK_CONFIG;  // Fallback
+}
+
+// Check if schedule has changed and handle transition
+checkScheduleTransition()
+{
+    integer now = llGetUnixTime();
+    if (now - last_schedule_check < SCHEDULE_CHECK_INTERVAL)
+    {
+        return;  // Don't check too frequently
+    }
+    
+    last_schedule_check = now;
+    string new_period = getCurrentSchedulePeriod();
+    
+    if (new_period != current_schedule_period)
+    {
+        // Schedule transition detected!
+        llOwnerSay("⏰ Schedule transition: " + current_schedule_period + " → " + new_period);
+        
+        // Handle shift end announcement
+        if (current_schedule_period == "WORK" && new_period == "AFTER_WORK")
+        {
+            announceEndOfShift();
+        }
+        else if (new_period == "WORK" && current_schedule_period == "NIGHT")
+        {
+            llSay(0, "Good morning everyone! I'm back at work.");
+            shift_end_announced = FALSE;  // Reset for next shift
+        }
+        
+        current_schedule_period = new_period;
+        
+        // Switch to appropriate waypoint config
+        switchWaypointConfig(new_period);
+    }
+}
+
+// Announce end of shift
+announceEndOfShift()
+{
+    if (!shift_end_announced)
+    {
+        llSay(0, "Well everyone, my shift is over! I'll see you all tomorrow. Have a great evening!");
+        shift_end_announced = TRUE;
+    }
+}
+
+// Switch to different waypoint configuration
+switchWaypointConfig(string period)
+{
+    string new_config = getConfigForPeriod(period);
+    
+    if (new_config != active_config_name)
+    {
+        llOwnerSay("Switching to " + period + " waypoint config: " + new_config);
+        
+        // Stop current activity
+        if (activity_animation != "")
+        {
+            llMessageLinked(LINK_SET, 0, "STOP_ANIM:" + activity_animation, NULL_KEY);
+        }
+        stopStandAnimation();
+        
+        if (current_state == "SITTING")
+        {
+            sit_target_key = NULL_KEY;
+        }
+        
+        // Update config name
+        WAYPOINT_CONFIG_NOTECARD = new_config;
+        active_config_name = new_config;
+        
+        // Reset waypoint index
+        current_waypoint_index = -1;
+        
+        // Load new config
+        loadWaypointConfig();
+    }
+}
+
 // Animation scanning
 scanInventoryAnimations()
 {
@@ -665,6 +826,12 @@ default
         last_state_change_time = llGetUnixTime();
         updateState("IDLE");
         
+        // Initialize schedule system
+        current_schedule_period = getCurrentSchedulePeriod();
+        active_config_name = getConfigForPeriod(current_schedule_period);
+        WAYPOINT_CONFIG_NOTECARD = active_config_name;
+        llOwnerSay("Schedule: " + current_schedule_period + " (config: " + active_config_name + ")");
+        
         if (llGetInventoryType(notecardName) == INVENTORY_NOTECARD)
         {
             llOwnerSay("Reading config...");
@@ -683,6 +850,9 @@ default
     {
         // Always check watchdog first
         checkWatchdog();
+        
+        // Check for schedule transitions
+        checkScheduleTransition();
         
         if (current_state == "LINGERING" || current_state == "SITTING")
         {
@@ -854,6 +1024,18 @@ default
                             else if (configKey == "HOME_DURATION_MINUTES")
                             {
                                 HOME_DURATION_MINUTES = (integer)value;
+                            }
+                            else if (configKey == "SHIFT_START_TIME")
+                            {
+                                SHIFT_START_TIME = value;
+                            }
+                            else if (configKey == "SHIFT_END_TIME")
+                            {
+                                SHIFT_END_TIME = value;
+                            }
+                            else if (configKey == "NIGHT_START_TIME")
+                            {
+                                NIGHT_START_TIME = value;
                             }
                         }
                     }
