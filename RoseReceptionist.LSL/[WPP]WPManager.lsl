@@ -72,7 +72,6 @@ integer activity_start_time = 0;
 
 // Sit target finding
 key sit_target_key = NULL_KEY;
-integer sit_permissions_granted = FALSE;
 integer waiting_for_sit_sensor = FALSE;
 
 // Animation scanning
@@ -629,6 +628,25 @@ navigateToCurrentWaypoint()
     llMessageLinked(LINK_SET, LINK_NAV_GOTO, (string)target_pos, (key)((string)wpNumber));
 }
 
+sit()
+{
+    // Now sit on the target
+    if (sit_target_key != NULL_KEY)
+    {
+        list details = llGetObjectDetails(sit_target_key, [OBJECT_POS, OBJECT_ROT]);
+        if (details != [])
+        {
+            vector pos = llList2Vector(details, 0);
+            llOwnerSay("pos.z = " + (string)pos.z + " new pos.z=" + (string)(pos.z+0.6));
+            pos.z = pos.z + 0.6; //The "butt" offset
+            rotation rot = llList2Rot(details, 1);
+            llSetPos(pos);
+            llSetRot(rot);
+            llOwnerSay("Sitting on target");
+        }
+    }
+}
+
 // MAIN STATE
 default
 {
@@ -964,9 +982,7 @@ default
         {
             sit_target_key = closest_key;
             llOwnerSay("Found sit target: " + llKey2Name(sit_target_key));
-            
-            // Request permissions to change links (needed for sitting)
-            llRequestPermissions(llGetOwner(), PERMISSION_TRIGGER_ANIMATION | PERMISSION_TAKE_CONTROLS);
+            sit();
         }
         else
         {
@@ -984,21 +1000,6 @@ default
             llOwnerSay("No 'sit' prim found nearby");
             waiting_for_sit_sensor = FALSE;
             llSensorRemove();
-        }
-    }
-    
-    run_time_permissions(integer perms)
-    {
-        if (perms & PERMISSION_TRIGGER_ANIMATION)
-        {
-            sit_permissions_granted = TRUE;
-            
-            // Now sit on the target
-            if (sit_target_key != NULL_KEY)
-            {
-                llSit(sit_target_key);
-                llOwnerSay("Sitting on target");
-            }
         }
     }
     
