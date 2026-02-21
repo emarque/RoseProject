@@ -88,6 +88,7 @@ integer last_schedule_check = 0;
 integer SCHEDULE_CHECK_INTERVAL = 60;  // Check every 60 seconds
 integer shift_end_announced = FALSE;  // Track if we've said goodbye
 integer schedule_transition_teleport = FALSE;  // Flag to teleport after config load
+integer timezone_offset = -8; //default to SLT
 
 // Config notecards for different periods
 string WORK_CONFIG = "[WPP]WaypointConfig";
@@ -107,17 +108,100 @@ integer parseTimeToMinutes(string time_str)
     return hours * 60 + minutes;
 }
 
+string  sbGetTimestamp(integer intOffset) {
+    // Start with December for purposes of wrapping
+    list    lstDays  = [31, 31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+
+    string  strTimestamp = llGetTimestamp();
+
+    list    lstTime  = llParseString2List(strTimestamp, ["-", ":", ".", "T"], []);
+    integer intYear  = llList2Integer(lstTime, 0);
+    integer intMonth = llList2Integer(lstTime, 1);
+    integer intDay   = llList2Integer(lstTime, 2);
+    integer intHour  = llList2Integer(lstTime, 3);
+
+    string  strYear;
+    string  strMonth;
+    string  strDay;
+    string  strHour;
+
+    if (intOffset == 0) { return strTimestamp; }
+
+    if (intOffset < -24 || intOffset > 24) {
+        intOffset = ((integer)llGetWallclock() - (integer)llGetGMTclock()) / 3600;
+    }
+
+    intHour+= intOffset;
+
+    // Add a day to February in leap years
+    if (intYear % 4 == 0 && (intYear % 100 != 0 || intYear % 400 == 0)) {
+        lstDays = llListReplaceList(lstDays, [29], 2, 2);
+    }
+
+    if (intOffset < 0) {
+        if (intHour < 0) { 
+            intHour+= 24;
+            --intDay;
+        }
+
+        if (intDay < 1) {
+            intDay = llList2Integer(lstDays, --intMonth);
+        }
+
+        if (intMonth < 1) {
+            intMonth = 12;
+            --intYear;
+        }
+    }
+
+    if (intOffset > 0) {
+        if (intHour > 23) {
+            intHour-= 24;
+            ++intDay;
+        }
+
+        if (intDay > llList2Integer(lstDays, intMonth)) {
+            intDay = 1;
+            ++intMonth;
+        }
+
+        if (intMonth > 12) {
+            intMonth = 1;
+            ++intYear;
+        }
+    }
+
+    strYear  = (string)intYear;
+    strMonth = (string)intMonth;
+    strDay   = (string)intDay;
+    strHour  = (string)intHour;
+
+    if (llStringLength(strMonth) < 2) { strMonth = "0" + strMonth; }
+    if (llStringLength(strDay)   < 2) { strDay   = "0" + strDay;   }
+    if (llStringLength(strHour)  < 2) { strHour  = "0" + strHour;  }
+
+    return
+        strYear                   + "-" + 
+        strMonth                  + "-" + 
+        strDay                    + "T" + 
+        strHour                   + ":" + 
+        llList2String(lstTime, 4) + ":" + 
+        llList2String(lstTime, 5) + "." + 
+        llList2String(lstTime, 6) + "Z";
+        // Obviously this isn't really Z time anymore, but I left it there in case there
+        // are scripts expecting it.
+}
+
 // Get current SL time in minutes since midnight
 integer getCurrentTimeMinutes()
 {
-    string timestamp = llGetTimestamp();
+    string timestamp = sbGetTimestamp(timezone_offset); // adjusts for timezone automatically
     // Format: YYYY-MM-DDTHH:MM:SS.ffffffZ
     integer tpos = llSubStringIndex(timestamp, "T");
     string timepart = llGetSubString(timestamp, tpos + 1, tpos + 8);  // HH:MM:SS
     
     integer hours = (integer)llGetSubString(timepart, 0, 1);
     integer minutes = (integer)llGetSubString(timepart, 3, 4);
-    
     return hours * 60 + minutes;
 }
 
