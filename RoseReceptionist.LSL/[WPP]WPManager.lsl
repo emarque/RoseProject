@@ -1337,6 +1337,10 @@ default
                             {
                                 NIGHT_START_TIME = value;
                             }
+                            else if (configKey == "TIMEZONE_OFFSET")
+                            {
+                                timezone_offset = (integer)value;
+                            }
                         }
                     }
                 }
