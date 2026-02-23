@@ -1,6 +1,18 @@
 // [WPP]WPManager.lsl
 // Waypoint Manager - Determines next waypoint and manages activity state
 
+// Debug mode
+integer DEBUG = FALSE;  // Will be loaded from RoseConfig.txt
+
+// Debug output function
+debugSay(string msg)
+{
+    if (DEBUG)
+    {
+        llOwnerSay("[Manager] " + msg);
+    }
+}
+
 // CONFIGURATION
 string WAYPOINT_PREFIX = "Waypoint";
 
@@ -309,7 +321,7 @@ checkScheduleTransition()
     if (new_period != current_schedule_period)
     {
         // Schedule transition detected!
-        llOwnerSay("⏰ Schedule transition: " + current_schedule_period + " → " + new_period);
+        debugSay("⏰ Schedule transition: " + current_schedule_period + " → " + new_period);
         
         // Handle shift end announcement
         if (current_schedule_period == "WORK" && new_period == "AFTER_WORK")
@@ -670,14 +682,14 @@ loadWaypointConfig()
     if (llGetInventoryType(WAYPOINT_CONFIG_NOTECARD) == INVENTORY_NOTECARD)
     {
         loading_config = TRUE;  // Set flag to prevent reset during load
-        llOwnerSay("Loading wp config: " + WAYPOINT_CONFIG_NOTECARD);
+        debugSay("Loading wp config: " + WAYPOINT_CONFIG_NOTECARD);
         waypointConfigLine = 0;
         waypoint_configs = [];
         waypointConfigQuery = llGetNotecardLine(WAYPOINT_CONFIG_NOTECARD, waypointConfigLine);
     }
     else
     {
-        llOwnerSay("No wp config notecard");
+        debugSay("No wp config notecard");
     }
 }
 
@@ -873,7 +885,7 @@ processWaypoint(vector wpPos)
     if (wpNumber == HOME_WAYPOINT)
     {
         activity_duration = (HOME_DURATION_MINUTES * 60); // minutes to seconds
-        llOwnerSay("Duration set to: " + (string)(HOME_DURATION_MINUTES * 60) + "seconds");
+        debugSay("Duration set to: " + (string)(HOME_DURATION_MINUTES * 60) + "seconds");
     }
     
     // If this is the only waypoint in the period, set duration to match period end
@@ -885,7 +897,7 @@ processWaypoint(vector wpPos)
         if (seconds_until_end > 60 && seconds_until_end < 86400)
         {
             activity_duration = seconds_until_end;
-            llOwnerSay("Single activity - duration set to period end: " + (string)activity_duration + "s (" + 
+            debugSay("Single activity - duration set to period end: " + (string)activity_duration + "s (" + 
                       (string)(activity_duration / 60) + " minutes)");
         }
     }
@@ -983,7 +995,7 @@ moveToNextWaypoint()
     integer listLen = llGetListLength(waypoint_configs);
     if (num_waypoints == 0)
     {
-        llOwnerSay("No wp configs (list len=" + (string)listLen + ")");
+        debugSay("No wp configs (list len=" + (string)listLen + ")");
         llSetTimerEvent(30.0);
         return;
     }
@@ -1047,7 +1059,7 @@ moveToNextWaypoint()
     
     if (found_index == -1)
     {
-        llOwnerSay("All wp blocked");
+        debugSay("All wp blocked");
         llSetTimerEvent(30.0);
         return;
     }
@@ -1091,7 +1103,7 @@ navigateToCurrentWaypoint()
         schedule_transition_teleport = FALSE;
         
         // Use llSetRegionPos for instant teleport
-        llOwnerSay("Teleporting to first waypoint of new schedule");
+        debugSay("Teleporting to first waypoint of new schedule");
         
         // llSetRegionPos can move up to 10m per call
         // For longer distances, we need multiple calls
@@ -1112,7 +1124,7 @@ navigateToCurrentWaypoint()
                 if (!success)
                 {
                     // Failed - fall back to normal navigation
-                    llOwnerSay("Teleport failed, using normal navigation");
+                    debugSay("Teleport failed, using normal navigation");
                     updateState("WALKING");
                     llMessageLinked(LINK_SET, LINK_NAV_GOTO, (string)target_pos, (key)((string)wpNumber));
                     return;
@@ -1126,7 +1138,7 @@ navigateToCurrentWaypoint()
             if (!success)
             {
                 // Failed - fall back to normal navigation
-                llOwnerSay("Teleport failed, using normal navigation");
+                debugSay("Teleport failed, using normal navigation");
                 updateState("WALKING");
                 llMessageLinked(LINK_SET, LINK_NAV_GOTO, (string)target_pos, (key)((string)wpNumber));
                 return;
@@ -1158,7 +1170,7 @@ sit()
             rotation rot = llList2Rot(details, 1);
             llSetPos(pos);
             llSetRot(rot);
-            llOwnerSay("Sitting on target");
+            debugSay("Sitting on target");
         }
     }
 }
@@ -1168,7 +1180,7 @@ default
 {
     state_entry()
     {
-        llOwnerSay("Waypoint Manager ready");
+        debugSay("Waypoint Manager ready");
         
         // Initialize watchdog timer
         last_state_change_time = llGetUnixTime();
@@ -1178,17 +1190,23 @@ default
         current_schedule_period = getCurrentSchedulePeriod();
         active_config_name = getConfigForPeriod(current_schedule_period);
         WAYPOINT_CONFIG_NOTECARD = active_config_name;
-        llOwnerSay("Schedule: " + current_schedule_period + " (config: " + active_config_name + ")");
+        debugSay("Schedule: " + current_schedule_period + " (config: " + active_config_name + ")");
+        
+        // Set up debug listener if DEBUG mode
+        if (DEBUG)
+        {
+            llListen(-9876, "", NULL_KEY, "");
+        }
         
         if (llGetInventoryType(notecardName) == INVENTORY_NOTECARD)
         {
-            llOwnerSay("Reading config...");
+            debugSay("Reading config...");
             notecardLine = 0;
             notecardQuery = llGetNotecardLine(notecardName, notecardLine);
         }
         else
         {
-            llOwnerSay("No config, using defaults");
+            debugSay("No config, using defaults");
             scanInventoryAnimations();
             loadWaypointConfig();
         }
@@ -1410,6 +1428,10 @@ default
                             {
                                 HOME_DURATION_MINUTES = (integer)value;
                             }
+                            else if (configKey == "DEBUG")
+                            {
+                                DEBUG = (value == "TRUE" || value == "true" || value == "1");
+                            }
                             else if (configKey == "SHIFT_START_TIME")
                             {
                                 SHIFT_START_TIME = value;
@@ -1435,10 +1457,10 @@ default
             }
             else
             {
-                llOwnerSay("Config loaded");
+                debugSay("Config loaded");
                 if (llGetListLength(available_attachables) > 0)
                 {
-                    llOwnerSay((string)llGetListLength(available_attachables) + " attachables");
+                    debugSay((string)llGetListLength(available_attachables) + " attachables");
                 }
                 
                 scanInventoryAnimations();
@@ -1557,12 +1579,12 @@ default
         if (closest_key != NULL_KEY)
         {
             sit_target_key = closest_key;
-            llOwnerSay("Found sit target: " + llKey2Name(sit_target_key));
+            debugSay("Found sit target: " + llKey2Name(sit_target_key));
             sit();
         }
         else
         {
-            llOwnerSay("No 'sit' prim found nearby");
+            debugSay("No 'sit' prim found nearby");
         }
         
         waiting_for_sit_sensor = FALSE;
@@ -1573,9 +1595,83 @@ default
     {
         if (waiting_for_sit_sensor)
         {
-            llOwnerSay("No 'sit' prim found nearby");
+            debugSay("No 'sit' prim found nearby");
             waiting_for_sit_sensor = FALSE;
             llSensorRemove();
+        }
+    }
+    
+    touch_start(integer num_detected)
+    {
+        // Only respond to touches when DEBUG mode is enabled
+        if (!DEBUG) return;
+        
+        // Get the toucher's key
+        key toucher = llDetectedKey(0);
+        
+        // Show status menu
+        llDialog(toucher, 
+                 "Debug Menu - Get Current Status", 
+                 ["Status Report"], 
+                 -9876);
+    }
+    
+    listen(integer channel, string name, key id, string msg)
+    {
+        // Only handle debug menu when DEBUG is enabled
+        if (!DEBUG) return;
+        if (channel != -9876) return;
+        
+        if (msg == "Status Report")
+        {
+            // Print comprehensive status
+            llOwnerSay("========== STATUS REPORT ==========");
+            llOwnerSay("Current State: " + current_state);
+            llOwnerSay("Current Waypoint Index: " + (string)current_waypoint_index);
+            llOwnerSay("Total Waypoints: " + (string)getWaypointCount());
+            llOwnerSay("Current Activity: " + current_activity_name);
+            llOwnerSay("Activity Type: " + activity_type);
+            llOwnerSay("Activity Duration: " + (string)activity_duration + "s");
+            
+            integer elapsed = llGetUnixTime() - activity_start_time;
+            llOwnerSay("Activity Elapsed: " + (string)elapsed + "s");
+            llOwnerSay("Activity Remaining: " + (string)(activity_duration - elapsed) + "s");
+            
+            llOwnerSay("Schedule Period: " + current_schedule_period);
+            llOwnerSay("Active Config: " + active_config_name);
+            
+            if (llGetListLength(activity_animations) > 0)
+            {
+                llOwnerSay("Animation List: " + llList2CSV(activity_animations));
+                llOwnerSay("Current Anim Index: " + (string)current_anim_index);
+            }
+            else if (activity_animation != "")
+            {
+                llOwnerSay("Single Animation: " + activity_animation);
+            }
+            
+            llOwnerSay("Stand Animation: " + current_stand_animation);
+            llOwnerSay("At Home: " + (string)at_home);
+            llOwnerSay("Loop Started: " + (string)loop_started);
+            
+            integer time_in_state = llGetUnixTime() - last_state_change_time;
+            llOwnerSay("Time in State: " + (string)time_in_state + "s");
+            llOwnerSay("Watchdog Timeout: " + (string)WATCHDOG_TIMEOUT + "s");
+            
+            if (current_state == "WALKING")
+            {
+                llOwnerSay("Waiting for: LINK_NAV_ARRIVED or LINK_NAV_TIMEOUT");
+            }
+            else if (current_state == "LINGERING" || current_state == "SITTING")
+            {
+                llOwnerSay("Waiting for: Timer event (activity completion)");
+            }
+            else if (current_state == "IDLE")
+            {
+                llOwnerSay("Waiting for: moveToNextWaypoint call");
+            }
+            
+            llOwnerSay("=====================================");
         }
     }
     

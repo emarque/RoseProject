@@ -2,10 +2,13 @@
 // Activity Reporter - Tracks and reports activities via API
 
 // CONFIGURATION
-// API_KEY is now read from RoseConfig.txt notecard
-// Get your API key from your Rose Receptionist dashboard
+// SUBSCRIBER_KEY is now read from RoseConfig.txt notecard
+// Get your subscriber key from your Rose Receptionist dashboard
 string API_ENDPOINT = "https://rosercp.pantherplays.com/api";
-string API_KEY = "your-api-key-here";  // Will be loaded from RoseConfig.txt
+string SUBSCRIBER_KEY = "your-subscriber-key-here";  // Will be loaded from RoseConfig.txt
+
+// Debug mode
+integer DEBUG = FALSE;  // Will be loaded from RoseConfig.txt
 
 string SHIFT_START_TIME = "09:00";
 string SHIFT_END_TIME = "17:00";
@@ -20,6 +23,15 @@ integer LINK_ACTIVITY_QUERY = 3012;    // Other->Reporter: Get current activity
 string notecardName = "RoseConfig";
 key notecardQuery;
 integer notecardLine = 0;
+
+// Debug output function
+debugSay(string msg)
+{
+    if (DEBUG)
+    {
+        llOwnerSay("[Reporter] " + msg);
+    }
+}
 
 // STATE VARIABLES
 string current_activity_name = "idle";
@@ -92,7 +104,7 @@ sendActivityBatch()
     key http_request_id = llHTTPRequest(API_ENDPOINT + "/activities/batch",
         [HTTP_METHOD, "POST",
          HTTP_MIMETYPE, "application/json",
-         HTTP_CUSTOM_HEADER, "X-API-Key", (string)API_KEY,
+         HTTP_CUSTOM_HEADER, "X-API-Key", (string)SUBSCRIBER_KEY,
          HTTP_BODY_MAXLENGTH, 16384],
         json);
     
@@ -110,7 +122,7 @@ completeActivity(string activityId)
         API_ENDPOINT + "/reports/activities/" + activityId + "/complete",
         [HTTP_METHOD, "PUT",
          HTTP_MIMETYPE, "application/json",
-         HTTP_CUSTOM_HEADER, "X-API-Key", (string)API_KEY],
+         HTTP_CUSTOM_HEADER, "X-API-Key", (string)SUBSCRIBER_KEY],
         "{}"
     );
 }
@@ -121,7 +133,7 @@ getCurrentActivity()
     key http_request_id = llHTTPRequest(
         API_ENDPOINT + "/reports/activities/current",
         [HTTP_METHOD, "GET",
-         HTTP_CUSTOM_HEADER, "X-API-Key", (string)API_KEY],
+         HTTP_CUSTOM_HEADER, "X-API-Key", (string)SUBSCRIBER_KEY],
         ""
     );
 }
@@ -137,11 +149,11 @@ generateDailyReport()
         API_ENDPOINT + "/reports/daily",
         [HTTP_METHOD, "POST",
          HTTP_MIMETYPE, "application/json",
-         HTTP_CUSTOM_HEADER, "X-API-Key", (string)API_KEY],
+         HTTP_CUSTOM_HEADER, "X-API-Key", (string)SUBSCRIBER_KEY],
         json
     );
     
-    llOwnerSay("Daily report: " + today);
+    debugSay("Daily report: " + today);
 }
 
 // MAIN STATE
@@ -149,24 +161,24 @@ default
 {
     state_entry()
     {
-        llOwnerSay("Reporter ready");
+        debugSay("Reporter ready");
         last_batch_time = llGetUnixTime();
         
         // Read config from notecard
         if (llGetInventoryType(notecardName) == INVENTORY_NOTECARD)
         {
-            llOwnerSay("Reading config...");
+            debugSay("Reading config...");
             notecardLine = 0;
             notecardQuery = llGetNotecardLine(notecardName, notecardLine);
         }
         else
         {
-            llOwnerSay("No RoseConfig found, using default API_KEY");
-            // Warn if API_KEY is not configured
-            if (API_KEY == "your-api-key-here")
+            debugSay("No RoseConfig found, using default SUBSCRIBER_KEY");
+            // Warn if SUBSCRIBER_KEY is not configured
+            if (SUBSCRIBER_KEY == "your-subscriber-key-here")
             {
-                llOwnerSay("⚠️ WARNING: API_KEY not configured!");
-                llOwnerSay("Add API_KEY to RoseConfig notecard");
+                llOwnerSay("⚠️ WARNING: SUBSCRIBER_KEY not configured!");
+                llOwnerSay("Add SUBSCRIBER_KEY to RoseConfig notecard");
                 llOwnerSay("All API calls will fail with HTTP 401");
             }
         }
@@ -236,10 +248,10 @@ default
         }
         else if (status == 401)
         {
-            // Unauthorized - invalid API key
-            llOwnerSay("⚠️ HTTP 401: Invalid API key");
-            llOwnerSay("Please update API_KEY in RoseConfig notecard");
-            llOwnerSay("Get your API key from Rose Receptionist dashboard");
+            // Unauthorized - invalid subscriber key
+            llOwnerSay("⚠️ HTTP 401: Invalid subscriber key");
+            llOwnerSay("Please update SUBSCRIBER_KEY in RoseConfig notecard");
+            llOwnerSay("Get your subscriber key from Rose Receptionist dashboard");
         }
         else if (status == 429)
         {
@@ -249,11 +261,11 @@ default
             {
                 if (error_429_count > 1)
                 {
-                    llOwnerSay("429 x" + (string)error_429_count);
+                    debugSay("429 x" + (string)error_429_count);
                 }
                 else
                 {
-                    llOwnerSay("429 throttled");
+                    debugSay("429 throttled");
                 }
                 last_429_time = now;
                 error_429_count = 0;
@@ -262,7 +274,7 @@ default
         else
         {
             // Log other HTTP errors
-            llOwnerSay("HTTP " + (string)status);
+            debugSay("HTTP " + (string)status);
         }
     }
     
@@ -286,9 +298,13 @@ default
                             string configKey = llStringTrim(llGetSubString(data, 0, equals - 1), STRING_TRIM);
                             string value = llStringTrim(llGetSubString(data, equals + 1, -1), STRING_TRIM);
                             
-                            if (configKey == "API_KEY")
+                            if (configKey == "SUBSCRIBER_KEY")
                             {
-                                API_KEY = value;
+                                SUBSCRIBER_KEY = value;
+                            }
+                            else if (configKey == "DEBUG")
+                            {
+                                DEBUG = (value == "TRUE" || value == "true" || value == "1");
                             }
                             else if (configKey == "SHIFT_START_TIME")
                             {
@@ -312,13 +328,13 @@ default
             else
             {
                 // Config reading complete
-                llOwnerSay("Config loaded");
+                debugSay("Config loaded");
                 
-                // Warn if API_KEY is still not configured
-                if (API_KEY == "your-api-key-here")
+                // Warn if SUBSCRIBER_KEY is still not configured
+                if (SUBSCRIBER_KEY == "your-subscriber-key-here")
                 {
-                    llOwnerSay("⚠️ WARNING: API_KEY not configured in RoseConfig!");
-                    llOwnerSay("Add API_KEY to RoseConfig notecard");
+                    llOwnerSay("⚠️ WARNING: SUBSCRIBER_KEY not configured in RoseConfig!");
+                    llOwnerSay("Add SUBSCRIBER_KEY to RoseConfig notecard");
                     llOwnerSay("All API calls will fail with HTTP 401");
                 }
             }

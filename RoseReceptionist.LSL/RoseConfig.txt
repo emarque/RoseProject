@@ -3,10 +3,13 @@
 
 # =============================================================================
 # API Configuration
-# Get your API key from your Rose Receptionist dashboard
-# Without a valid API key, all API calls will fail with HTTP 401 errors
+# Get your subscriber key from your Rose Receptionist dashboard
+# Without a valid subscriber key, all API calls will fail with HTTP 401 errors
 # =============================================================================
-API_KEY=your-api-key-here
+SUBSCRIBER_KEY=your-subscriber-key-here
+
+# Debug mode (undocumented, for development only)
+DEBUG=FALSE
 
 # Owner UUIDs (one per line)
 # Add your Second Life avatar UUID here

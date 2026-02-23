@@ -1,6 +1,18 @@
 // [WPP]WPNavigator.lsl
 // Navigation Engine - Handles actual movement via keyframed motion
 
+// Debug mode
+integer DEBUG = FALSE;  // Will be loaded from RoseConfig.txt if needed
+
+// Debug output function
+debugSay(string msg)
+{
+    if (DEBUG)
+    {
+        llOwnerSay("[Navigator] " + msg);
+    }
+}
+
 // CONFIGURATION
 float MOVEMENT_SPEED = 1.5;  // meters per second
 integer NAVIGATION_TIMEOUT = 60; // seconds
@@ -154,7 +166,7 @@ default
         // Scan for walk animations
         scanInventoryAnimations();
         
-        llOwnerSay("Navigator ready");
+        debugSay("Navigator ready");
     }
     
     timer()
