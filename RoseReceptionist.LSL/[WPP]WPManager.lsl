@@ -247,6 +247,53 @@ string getConfigForPeriod(string period)
     return WORK_CONFIG;  // Fallback
 }
 
+// Calculate seconds until current period ends
+integer getSecondsUntilPeriodEnd()
+{
+    integer current_minutes = getCurrentTimeMinutes();
+    integer shift_start = parseTimeToMinutes(SHIFT_START_TIME);
+    integer shift_end = parseTimeToMinutes(SHIFT_END_TIME);
+    integer night_start = parseTimeToMinutes(NIGHT_START_TIME);
+    
+    string period = getCurrentSchedulePeriod();
+    integer period_end_minutes;
+    
+    if (period == "WORK")
+    {
+        period_end_minutes = shift_end;
+    }
+    else if (period == "AFTER_WORK")
+    {
+        period_end_minutes = night_start;
+    }
+    else // NIGHT
+    {
+        period_end_minutes = shift_start;
+        // If we're past midnight and shift starts tomorrow
+        if (current_minutes < period_end_minutes)
+        {
+            // We're already into the next day, period ends at shift_start
+            return (period_end_minutes - current_minutes) * 60;
+        }
+        else
+        {
+            // Period ends tomorrow at shift_start
+            return ((1440 - current_minutes) + period_end_minutes) * 60;
+        }
+    }
+    
+    // For WORK and AFTER_WORK periods
+    if (period_end_minutes > current_minutes)
+    {
+        return (period_end_minutes - current_minutes) * 60;
+    }
+    else
+    {
+        // Period ends tomorrow (shouldn't happen normally, but handle it)
+        return ((1440 - current_minutes) + period_end_minutes) * 60;
+    }
+}
+
 // Check if schedule has changed and handle transition
 checkScheduleTransition()
 {
@@ -306,12 +353,36 @@ switchWaypointConfig(string period)
         {
             llMessageLinked(LINK_SET, 0, "STOP_ANIM:" + activity_animation, NULL_KEY);
         }
+        
+        // Stop all animation cycling
+        if (llGetListLength(activity_animations) > 0)
+        {
+            integer i;
+            for (i = 0; i < llGetListLength(activity_animations); i++)
+            {
+                string anim = llList2String(activity_animations, i);
+                if (anim != "")
+                {
+                    llMessageLinked(LINK_SET, 0, "STOP_ANIM:" + anim, NULL_KEY);
+                }
+            }
+        }
+        
         stopStandAnimation();
         
         if (current_state == "SITTING")
         {
             sit_target_key = NULL_KEY;
         }
+        
+        // Update state to IDLE to prevent freeze
+        updateState("IDLE");
+        llSetTimerEvent(0.0);  // Stop timer temporarily
+        
+        // Clear activity data
+        activity_animation = "";
+        activity_animations = [];
+        current_activity_name = "";
         
         // Update config name
         WAYPOINT_CONFIG_NOTECARD = new_config;
@@ -803,6 +874,20 @@ processWaypoint(vector wpPos)
     {
         activity_duration = (HOME_DURATION_MINUTES * 60); // minutes to seconds
         llOwnerSay("Duration set to: " + (string)(HOME_DURATION_MINUTES * 60) + "seconds");
+    }
+    
+    // If this is the only waypoint in the period, set duration to match period end
+    integer num_waypoints = getWaypointCount();
+    if (num_waypoints == 1 && activity_type != "transient")
+    {
+        integer seconds_until_end = getSecondsUntilPeriodEnd();
+        // Only override if calculated time is reasonable (more than 1 minute, less than 24 hours)
+        if (seconds_until_end > 60 && seconds_until_end < 86400)
+        {
+            activity_duration = seconds_until_end;
+            llOwnerSay("Single activity - duration set to period end: " + (string)activity_duration + "s (" + 
+                      (string)(activity_duration / 60) + " minutes)");
+        }
     }
     
     // Notify other scripts
