@@ -686,14 +686,9 @@ loadWaypointConfig()
     if (llGetInventoryType(WAYPOINT_CONFIG_NOTECARD) == INVENTORY_NOTECARD)
     {
         loading_config = TRUE;  // Set flag to prevent reset during load
-        debugSay("Loading wp config: " + WAYPOINT_CONFIG_NOTECARD);
         waypointConfigLine = 0;
         waypoint_configs = [];
         waypointConfigQuery = llGetNotecardLine(WAYPOINT_CONFIG_NOTECARD, waypointConfigLine);
-    }
-    else
-    {
-        debugSay("No wp config notecard");
     }
 }
 
@@ -1063,7 +1058,6 @@ moveToNextWaypoint()
     
     if (found_index == -1)
     {
-        debugSay("All wp blocked");
         llSetTimerEvent(30.0);
         return;
     }
@@ -1107,10 +1101,7 @@ navigateToCurrentWaypoint()
         schedule_transition_teleport = FALSE;
         
         // Use llSetRegionPos for instant teleport
-        debugSay("Teleporting to first waypoint of new schedule");
-        
         // llSetRegionPos can move up to 10m per call
-        // For longer distances, we need multiple calls
         vector current_pos = llGetPos();
         vector distance_vec = target_pos - current_pos;
         float distance = llVecMag(distance_vec);
@@ -1128,7 +1119,6 @@ navigateToCurrentWaypoint()
                 if (!success)
                 {
                     // Failed - fall back to normal navigation
-                    debugSay("Teleport failed, using normal navigation");
                     updateState("WALKING");
                     llMessageLinked(LINK_SET, LINK_NAV_GOTO, (string)target_pos, (key)((string)wpNumber));
                     return;
@@ -1142,7 +1132,6 @@ navigateToCurrentWaypoint()
             if (!success)
             {
                 // Failed - fall back to normal navigation
-                debugSay("Teleport failed, using normal navigation");
                 updateState("WALKING");
                 llMessageLinked(LINK_SET, LINK_NAV_GOTO, (string)target_pos, (key)((string)wpNumber));
                 return;
@@ -1194,7 +1183,6 @@ default
         current_schedule_period = getCurrentSchedulePeriod();
         active_config_name = getConfigForPeriod(current_schedule_period);
         WAYPOINT_CONFIG_NOTECARD = active_config_name;
-        debugSay("Schedule: " + current_schedule_period + " (config: " + active_config_name + ")");
         
         // Set up debug listener if DEBUG mode
         if (DEBUG)
@@ -1204,13 +1192,11 @@ default
         
         if (llGetInventoryType(notecardName) == INVENTORY_NOTECARD)
         {
-            debugSay("Reading config...");
             notecardLine = 0;
             notecardQuery = llGetNotecardLine(notecardName, notecardLine);
         }
         else
         {
-            debugSay("No config, using defaults");
             scanInventoryAnimations();
             loadWaypointConfig();
         }
@@ -1375,62 +1361,59 @@ default
         }
         else if (num == LINK_DEBUG_STATUS_REQUEST)
         {
-            // Build comprehensive status report
-            string status = "[Manager] === DEBUG STATUS REPORT ===|";
-            status += "[Manager] Current State: " + current_state + "|";
-            status += "[Manager] Current Waypoint: " + (string)current_waypoint_index + " of " + (string)getWaypointCount() + "|";
-            status += "[Manager] Current Activity: " + current_activity_name + "|";
-            status += "[Manager] Activity Type: " + activity_type + "|";
-            status += "[Manager] Activity Duration: " + (string)activity_duration + "s (" + (string)((float)activity_duration / 60.0) + " min)|";
+            // Build status report (optimized for memory)
+            string status = "=== STATUS ===|";
+            status += "State: " + current_state + "|";
+            status += "WP: " + (string)current_waypoint_index + "/" + (string)getWaypointCount() + "|";
+            status += "Activity: " + current_activity_name + "|";
+            status += "Type: " + activity_type + "|";
+            status += "Duration: " + (string)activity_duration + "s|";
             
             integer elapsed = llGetUnixTime() - activity_start_time;
-            status += "[Manager] Time Elapsed: " + (string)elapsed + "s|";
-            status += "[Manager] Time Remaining: " + (string)(activity_duration - elapsed) + "s|";
+            status += "Elapsed: " + (string)elapsed + "s|Remaining: " + (string)(activity_duration - elapsed) + "s|";
             
-            status += "[Manager] Schedule Period: " + current_schedule_period + "|";
-            status += "[Manager] Active Config: " + active_config_name + "|";
+            status += "Period: " + current_schedule_period + "|";
+            status += "Config: " + active_config_name + "|";
             
             if (llGetListLength(activity_animations) > 0)
             {
-                status += "[Manager] Animation: Cycling through " + (string)llGetListLength(activity_animations) + " animations|";
-                status += "[Manager] Current Animation Index: " + (string)current_anim_index + "|";
-                status += "[Manager] Animation Interval: " + (string)activity_anim_interval + "s|";
+                status += "Anims: " + (string)llGetListLength(activity_animations) + " @ " + (string)activity_anim_interval + "s|";
+                status += "Anim Idx: " + (string)current_anim_index + "|";
             }
             else if (activity_animation != "")
             {
-                status += "[Manager] Single Animation: " + activity_animation + "|";
+                status += "Anim: " + activity_animation + "|";
             }
             else
             {
-                status += "[Manager] Animation: None|";
+                status += "Anim: None|";
             }
             
-            status += "[Manager] Stand Animation: " + current_stand_animation + "|";
-            status += "[Manager] At Home: " + (string)at_home + "|";
-            status += "[Manager] Loop Started: " + (string)loop_started + "|";
+            status += "Stand: " + current_stand_animation + "|";
+            status += "Home: " + (string)at_home + "|Loop: " + (string)loop_started + "|";
             
             integer time_in_state = llGetUnixTime() - last_state_change_time;
-            status += "[Manager] Time in Current State: " + (string)time_in_state + "s|";
-            status += "[Manager] Watchdog Timeout: " + (string)WATCHDOG_TIMEOUT + "s (" + (string)(WATCHDOG_TIMEOUT / 60) + " min)|";
+            status += "StateTime: " + (string)time_in_state + "s|";
+            status += "Watchdog: " + (string)WATCHDOG_TIMEOUT + "s|";
             
             if (current_state == "WALKING")
             {
-                status += "[Manager] Waiting For: LINK_NAV_ARRIVED or LINK_NAV_TIMEOUT|";
+                status += "Waiting: NAV_ARRIVED|";
             }
             else if (current_state == "LINGERING" || current_state == "SITTING")
             {
-                status += "[Manager] Waiting For: Timer event (activity completion)|";
+                status += "Waiting: Timer|";
             }
             else if (current_state == "IDLE")
             {
-                status += "[Manager] Waiting For: moveToNextWaypoint call|";
+                status += "Waiting: moveToNextWP|";
             }
             else
             {
-                status += "[Manager] Waiting For: State-specific event|";
+                status += "Waiting: Event|";
             }
             
-            status += "[Manager] =====================================";
+            status += "===";
             
             // Send status back to Main via link message
             llMessageLinked(LINK_SET, LINK_DEBUG_STATUS_RESPONSE, status, NULL_KEY);
@@ -1523,12 +1506,6 @@ default
             }
             else
             {
-                debugSay("Config loaded");
-                if (llGetListLength(available_attachables) > 0)
-                {
-                    debugSay((string)llGetListLength(available_attachables) + " attachables");
-                }
-                
                 scanInventoryAnimations();
                 loadWaypointConfig();
                 
