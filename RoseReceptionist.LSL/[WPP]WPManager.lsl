@@ -27,6 +27,10 @@ integer LINK_ACTIVITY_COMPLETE = 3011; // Waypoint->Reporter: Activity completed
 integer LINK_ACTIVITY_UPDATE = 2001;   // Waypoint->Main: Activity update
 integer LINK_WANDERING_STATE = 2000;   // From other scripts
 
+// Link messages - Debug Status
+integer LINK_DEBUG_STATUS_REQUEST = 9000;  // Main->Manager: Request status
+integer LINK_DEBUG_STATUS_RESPONSE = 9001; // Manager->Main: Send status
+
 integer STAND_ANIMATION_INTERVAL = 5;
 integer MAX_ACTIVITY_DURATION = 300;
 integer STAY_IN_PARCEL = TRUE;
@@ -1369,6 +1373,68 @@ default
         {
             toggleWander();
         }
+        else if (num == LINK_DEBUG_STATUS_REQUEST)
+        {
+            // Build comprehensive status report
+            string status = "[Manager] === DEBUG STATUS REPORT ===|";
+            status += "[Manager] Current State: " + current_state + "|";
+            status += "[Manager] Current Waypoint: " + (string)current_waypoint_index + " of " + (string)getWaypointCount() + "|";
+            status += "[Manager] Current Activity: " + current_activity_name + "|";
+            status += "[Manager] Activity Type: " + activity_type + "|";
+            status += "[Manager] Activity Duration: " + (string)activity_duration + "s (" + (string)((float)activity_duration / 60.0) + " min)|";
+            
+            integer elapsed = llGetUnixTime() - activity_start_time;
+            status += "[Manager] Time Elapsed: " + (string)elapsed + "s|";
+            status += "[Manager] Time Remaining: " + (string)(activity_duration - elapsed) + "s|";
+            
+            status += "[Manager] Schedule Period: " + current_schedule_period + "|";
+            status += "[Manager] Active Config: " + active_config_name + "|";
+            
+            if (llGetListLength(activity_animations) > 0)
+            {
+                status += "[Manager] Animation: Cycling through " + (string)llGetListLength(activity_animations) + " animations|";
+                status += "[Manager] Current Animation Index: " + (string)current_anim_index + "|";
+                status += "[Manager] Animation Interval: " + (string)activity_anim_interval + "s|";
+            }
+            else if (activity_animation != "")
+            {
+                status += "[Manager] Single Animation: " + activity_animation + "|";
+            }
+            else
+            {
+                status += "[Manager] Animation: None|";
+            }
+            
+            status += "[Manager] Stand Animation: " + current_stand_animation + "|";
+            status += "[Manager] At Home: " + (string)at_home + "|";
+            status += "[Manager] Loop Started: " + (string)loop_started + "|";
+            
+            integer time_in_state = llGetUnixTime() - last_state_change_time;
+            status += "[Manager] Time in Current State: " + (string)time_in_state + "s|";
+            status += "[Manager] Watchdog Timeout: " + (string)WATCHDOG_TIMEOUT + "s (" + (string)(WATCHDOG_TIMEOUT / 60) + " min)|";
+            
+            if (current_state == "WALKING")
+            {
+                status += "[Manager] Waiting For: LINK_NAV_ARRIVED or LINK_NAV_TIMEOUT|";
+            }
+            else if (current_state == "LINGERING" || current_state == "SITTING")
+            {
+                status += "[Manager] Waiting For: Timer event (activity completion)|";
+            }
+            else if (current_state == "IDLE")
+            {
+                status += "[Manager] Waiting For: moveToNextWaypoint call|";
+            }
+            else
+            {
+                status += "[Manager] Waiting For: State-specific event|";
+            }
+            
+            status += "[Manager] =====================================";
+            
+            // Send status back to Main via link message
+            llMessageLinked(LINK_SET, LINK_DEBUG_STATUS_RESPONSE, status, NULL_KEY);
+        }
     }
     
     dataserver(key query_id, string data)
@@ -1598,80 +1664,6 @@ default
             debugSay("No 'sit' prim found nearby");
             waiting_for_sit_sensor = FALSE;
             llSensorRemove();
-        }
-    }
-    
-    touch_start(integer num_detected)
-    {
-        // Only respond to touches when DEBUG mode is enabled
-        if (!DEBUG) return;
-        
-        // Get the toucher's key
-        key toucher = llDetectedKey(0);
-        
-        // Show status menu
-        llDialog(toucher, 
-                 "Debug Menu - Get Current Status", 
-                 ["Status Report"], 
-                 -9876);
-    }
-    
-    listen(integer channel, string name, key id, string msg)
-    {
-        // Only handle debug menu when DEBUG is enabled
-        if (!DEBUG) return;
-        if (channel != -9876) return;
-        
-        if (msg == "Status Report")
-        {
-            // Print comprehensive status
-            llOwnerSay("========== STATUS REPORT ==========");
-            llOwnerSay("Current State: " + current_state);
-            llOwnerSay("Current Waypoint Index: " + (string)current_waypoint_index);
-            llOwnerSay("Total Waypoints: " + (string)getWaypointCount());
-            llOwnerSay("Current Activity: " + current_activity_name);
-            llOwnerSay("Activity Type: " + activity_type);
-            llOwnerSay("Activity Duration: " + (string)activity_duration + "s");
-            
-            integer elapsed = llGetUnixTime() - activity_start_time;
-            llOwnerSay("Activity Elapsed: " + (string)elapsed + "s");
-            llOwnerSay("Activity Remaining: " + (string)(activity_duration - elapsed) + "s");
-            
-            llOwnerSay("Schedule Period: " + current_schedule_period);
-            llOwnerSay("Active Config: " + active_config_name);
-            
-            if (llGetListLength(activity_animations) > 0)
-            {
-                llOwnerSay("Animation List: " + llList2CSV(activity_animations));
-                llOwnerSay("Current Anim Index: " + (string)current_anim_index);
-            }
-            else if (activity_animation != "")
-            {
-                llOwnerSay("Single Animation: " + activity_animation);
-            }
-            
-            llOwnerSay("Stand Animation: " + current_stand_animation);
-            llOwnerSay("At Home: " + (string)at_home);
-            llOwnerSay("Loop Started: " + (string)loop_started);
-            
-            integer time_in_state = llGetUnixTime() - last_state_change_time;
-            llOwnerSay("Time in State: " + (string)time_in_state + "s");
-            llOwnerSay("Watchdog Timeout: " + (string)WATCHDOG_TIMEOUT + "s");
-            
-            if (current_state == "WALKING")
-            {
-                llOwnerSay("Waiting for: LINK_NAV_ARRIVED or LINK_NAV_TIMEOUT");
-            }
-            else if (current_state == "LINGERING" || current_state == "SITTING")
-            {
-                llOwnerSay("Waiting for: Timer event (activity completion)");
-            }
-            else if (current_state == "IDLE")
-            {
-                llOwnerSay("Waiting for: moveToNextWaypoint call");
-            }
-            
-            llOwnerSay("=====================================");
         }
     }
     

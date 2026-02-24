@@ -74,6 +74,15 @@ integer confirmation_channel = 0;
 integer training_mode_active = FALSE;
 key training_mode_user = NULL_KEY;
 
+// Debug mode state
+integer DEBUG = FALSE;
+integer debugMenuChannel;
+integer debugMenuListener;
+
+// Debug link message constants
+integer LINK_DEBUG_STATUS_REQUEST = 9000;
+integer LINK_DEBUG_STATUS_RESPONSE = 9001;
+
 // State
 key current_http_request;
 
@@ -765,6 +774,18 @@ default
                             AVAILABLE_ACTIONS = trimmed;
                             llOwnerSay("✅ AVAILABLE_ACTIONS: " + llDumpList2String(AVAILABLE_ACTIONS, ", "));
                         }
+                        else if (configKey == "DEBUG")
+                        {
+                            if (llToUpper(value) == "TRUE")
+                            {
+                                DEBUG = TRUE;
+                                llOwnerSay("✅ DEBUG mode: ENABLED");
+                            }
+                            else
+                            {
+                                DEBUG = FALSE;
+                            }
+                        }
                     }
                 }
                 
@@ -780,6 +801,13 @@ default
                     llOwnerSay("❌ ERROR: SUBSCRIBER_KEY not found in notecard!");
                     llOwnerSay("Add 'SUBSCRIBER_KEY=your-key-here' to RoseConfig notecard.");
                     return;
+                }
+                
+                // Set up debug menu listener if DEBUG is enabled
+                if (DEBUG)
+                {
+                    debugMenuChannel = -9876;
+                    debugMenuListener = llListen(debugMenuChannel, "", NULL_KEY, "");
                 }
                 
                 llOwnerSay("✅ Rose Receptionist initialized and ready!");
@@ -798,6 +826,14 @@ default
         if (training_mode_active)
         {
             // Ignore all touches during training - Training script handles them
+            return;
+        }
+        
+        // If DEBUG mode is enabled, show debug menu
+        if (DEBUG)
+        {
+            llDialog(toucher, "🔍 DEBUG Menu\n\nDiagnostic tools for troubleshooting.", 
+                     ["Status Report"], debugMenuChannel);
             return;
         }
         
@@ -851,7 +887,16 @@ default
     
     listen(integer channel, string name, key id, string message)
     {
-        if (channel == confirmation_channel)
+        if (channel == debugMenuChannel)
+        {
+            if (message == "Status Report")
+            {
+                llOwnerSay("[Main] Requesting status from Manager...");
+                // Send status request to WPManager
+                llMessageLinked(LINK_SET, LINK_DEBUG_STATUS_REQUEST, "", NULL_KEY);
+            }
+        }
+        else if (channel == confirmation_channel)
         {
             llListenRemove(confirmation_listener);
             confirmation_listener = 0;
@@ -1069,6 +1114,17 @@ default
         {
             // Activity update from wander script: msg format is "activity_name"
             current_activity = msg;
+        }
+        else if (num == LINK_DEBUG_STATUS_RESPONSE)
+        {
+            // Status report from WPManager
+            // Split by pipe separator and display each line
+            list lines = llParseString2List(msg, ["|"], []);
+            integer i;
+            for (i = 0; i < llGetListLength(lines); i++)
+            {
+                llOwnerSay(llList2String(lines, i));
+            }
         }
     }
     
