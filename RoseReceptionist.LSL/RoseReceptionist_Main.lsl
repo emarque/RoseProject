@@ -178,11 +178,6 @@ executeConfirmedAction(string action, string data)
     {
         sendSystemRequest("/system/subscribers", "GET", "");
     }
-    else if (action == "CONFIG_RELOAD")
-    {
-        llOwnerSay("🔄 Configuration updated, reloading...");
-        llResetScript();
-    }
 }
 
 integer isAdmin(key user)
@@ -1160,8 +1155,8 @@ default
         {
             if (llGetInventoryType("RoseConfig") == INVENTORY_NOTECARD)
             {
-                // Show confirmation dialog to owner
-                showConfirmationDialog(llGetOwner(), "CONFIG_RELOAD", "Configuration changed. Reset all scripts?", "");
+                llOwnerSay("🔄 Configuration updated, reloading...");
+                llResetScript();
             }
         }
     }
