@@ -34,7 +34,7 @@ string current_state = "IDLE";
 // Walk animation state
 string current_walk_animation = "";
 list available_walk_animations = [];
-string default_walk = "anim walk 1";
+string default_walk = "anim walk";
 
 // Animation scanning
 scanInventoryAnimations()
