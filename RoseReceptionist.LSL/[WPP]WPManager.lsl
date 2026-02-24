@@ -1210,7 +1210,7 @@ default
         // Check for schedule transitions
         checkScheduleTransition();
         
-        if (current_state == "LINGERING" || current_state == "SITTING")
+        if (current_state == "LINGERING" || current_state == "SITTING" || current_state == "INTERACTING")
         {
             integer elapsed = llGetUnixTime() - activity_start_time;
             
@@ -1226,8 +1226,8 @@ default
                     stopStandAnimation();
                 }
                 
-                // Unsit if we're sitting
-                if (current_state == "SITTING")
+                // Unsit if we're sitting or interacting
+                if (current_state == "SITTING" || current_state == "INTERACTING")
                 {
                     sit_target_key = NULL_KEY;
                 }
@@ -1248,8 +1248,8 @@ default
                     stopStandAnimation();
                 }
                 
-                // Unsit if we're sitting
-                if (current_state == "SITTING")
+                // Unsit if we're sitting or interacting
+                if (current_state == "SITTING" || current_state == "INTERACTING")
                 {
                     sit_target_key = NULL_KEY;
                 }
@@ -1347,7 +1347,8 @@ default
             if (msg == "GREETING" || msg == "CHATTING")
             {
                 updateState("INTERACTING");
-                llSetTimerEvent(0.0);
+                // Keep timer running to check for activity completion and schedule transitions
+                llSetTimerEvent(5.0);
             }
             else if (msg == "DONE")
             {
