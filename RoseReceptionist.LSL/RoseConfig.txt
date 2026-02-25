@@ -2,9 +2,14 @@
 # This notecard should be placed in the same object as the Rose scripts
 
 # =============================================================================
-# SECURITY NOTE: API credentials are configured in the script (secure)
-# This notecard contains only user-customizable settings
+# API Configuration
+# Get your subscriber key from your Rose Receptionist dashboard
+# Without a valid subscriber key, all API calls will fail with HTTP 401 errors
 # =============================================================================
+SUBSCRIBER_KEY=your-subscriber-key-here
+
+# Debug mode (undocumented, for development only)
+DEBUG=FALSE
 
 # Owner UUIDs (one per line)
 # Add your Second Life avatar UUID here
@@ -16,12 +21,21 @@ WANDER_ENABLED=TRUE
 WANDER_RADIUS=10
 WANDER_SENSOR_RANGE=50
 WANDER_SCAN_INTERVAL=5
-HOME_POSITION=<128, 128, 25>
-HOME_DURATION=300
+
+# Home Waypoint Configuration
+# Waypoint number to use as "home" (default: 0)
+# Rose will stay at this waypoint for HOME_DURATION_MINUTES when wandering begins
+HOME_WAYPOINT=0
+HOME_DURATION_MINUTES=0
 
 # Navigation Configuration
 # Movement speed in meters per second
 MOVEMENT_SPEED=0.5
+
+# Stand Animation Variation
+# How often (in seconds) to switch to a random stand animation during activities
+# Set to 0 to disable automatic variation (default: 5)
+STAND_ANIMATION_INTERVAL=5
 
 # Door Blocking Detection
 # Enable to check for closed doors blocking waypoints
@@ -34,9 +48,32 @@ DOOR_NAME_PATTERN=door
 STAY_IN_PARCEL=TRUE
 
 # Shift and Reporting Configuration
+# Work shift hours (when Rose is on duty as receptionist)
 SHIFT_START_TIME=09:00
 SHIFT_END_TIME=17:00
 DAILY_REPORT_TIME=17:05
+# Set timezone here (defaults to SLT & will handle DST automatically)
+TIMEZONE_OFFSET=-8
+
+# Night time start (when night activities begin)
+# Format: HH:MM in 24-hour format
+# Activities after work shift but before night start are "after work" activities
+# Night activities run from NIGHT_START_TIME until next SHIFT_START_TIME
+NIGHT_START_TIME=22:00
+
+# Schedule Period Behavior Configuration
+# Controls how Rose responds during different periods
+# WORK period: at_work=TRUE, is_awake=TRUE (normal proactive behavior)
+# AFTER_WORK period: at_work=FALSE, is_awake=TRUE (no work discussions)
+# NIGHT period: at_work=FALSE, is_awake=FALSE (sleeping, requires threshold to respond)
+WORK_AT_WORK=TRUE
+WORK_IS_AWAKE=TRUE
+AFTERWORK_AT_WORK=FALSE
+AFTERWORK_IS_AWAKE=TRUE
+NIGHT_AT_WORK=FALSE
+NIGHT_IS_AWAKE=FALSE
+# Number of mentions required to wake Rose during sleep (NIGHT period)
+SLEEP_MENTION_THRESHOLD=3
 
 # Detection and Greeting
 GREETING_RANGE=10

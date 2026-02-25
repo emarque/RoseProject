@@ -92,7 +92,7 @@ sendSystemRequest(string endpoint, string method, string json, key requestingUse
     
     list params = [HTTP_METHOD, method,
                    HTTP_CUSTOM_HEADER, "X-API-Key", (string)SUBSCRIBER_KEY,
-                   HTTP_BODY_MAXLENGTH, 16384];
+                   HTTP_BODY_MAXLENGTH, 16000];
     
     // Always set Content-Type for PUT/POST requests
     if (method == "PUT" || method == "POST")

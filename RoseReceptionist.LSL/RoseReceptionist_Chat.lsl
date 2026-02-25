@@ -6,11 +6,25 @@ integer LINK_CHAT_MESSAGE = 1001;
 integer LINK_SPEAK = 1002;
 integer LINK_WANDERING_STATE = 2000;
 
+// Schedule info link messages (for schedule-aware chat)
+integer LINK_GET_SCHEDULE_INFO = 5000;
+integer LINK_SCHEDULE_INFO = 5001;
+
 integer CHAT_CHANNEL = 0;
 float LISTEN_RANGE = 20.0;
 integer listen_handle = -1;
 
 string RECEPTIONIST_NAME = "Rose";
+
+// Schedule period state (updated via link messages)
+string current_period = "WORK";
+integer period_at_work = TRUE;
+integer period_is_awake = TRUE;
+integer sleep_mention_threshold = 3;
+
+// Mention tracking for sleep mode (NIGHT period)
+list mention_counts = []; // [avatar_key, count, timestamp, ...]
+integer MENTION_TIMEOUT = 300; // 5 minutes - reset count if no mentions
 
 // Transcript delimiters for communication with backend
 string TRANSCRIPT_START = "[TRANSCRIPT]";
@@ -30,6 +44,59 @@ list conversation_transcript = []; // [speaker_name, message, speaker_name, mess
 integer MAX_TRANSCRIPT_MESSAGES = 10; // Keep last 10 messages (stored as 20 list elements: speaker+message pairs)
 integer CONVERSATION_TIMEOUT = 60; // 60 seconds of silence ends conversation
 integer last_message_time = 0;
+
+// Schedule-aware chat helper functions
+requestScheduleInfo()
+{
+    // Request current schedule period info from WPManager
+    llMessageLinked(LINK_SET, LINK_GET_SCHEDULE_INFO, "", NULL_KEY);
+}
+
+integer incrementMentionCount(key avatar_key, integer is_shout)
+{
+    // Clean up old mentions (older than MENTION_TIMEOUT)
+    integer now = llGetUnixTime();
+    integer i;
+    for (i = llGetListLength(mention_counts) - 3; i >= 0; i -= 3)
+    {
+        integer timestamp = llList2Integer(mention_counts, i + 2);
+        if (now - timestamp > MENTION_TIMEOUT)
+        {
+            mention_counts = llDeleteSubList(mention_counts, i, i + 2);
+        }
+    }
+    
+    // Find existing entry or add new one
+    integer idx = llListFindList(mention_counts, [avatar_key]);
+    integer count = 1;
+    
+    if (idx != -1)
+    {
+        count = llList2Integer(mention_counts, idx + 1) + 1;
+        mention_counts = llListReplaceList(mention_counts, [count, now], idx + 1, idx + 2);
+    }
+    else
+    {
+        mention_counts += [avatar_key, count, now];
+    }
+    
+    // Shouts count as meeting threshold immediately
+    if (is_shout)
+    {
+        return sleep_mention_threshold;
+    }
+    
+    return count;
+}
+
+resetMentionCount(key avatar_key)
+{
+    integer idx = llListFindList(mention_counts, [avatar_key]);
+    if (idx != -1)
+    {
+        mention_counts = llDeleteSubList(mention_counts, idx, idx + 2);
+    }
+}
 
 // Check if a message is directed at Rose
 integer isMessageForRose(string message, key speaker_id)
@@ -116,6 +183,9 @@ default
         listen_handle = llListen(CHAT_CHANNEL, "", NULL_KEY, "");
         llOwnerSay("Rose Chat Script active - listening on channel " + (string)CHAT_CHANNEL);
         
+        // Request initial schedule info
+        requestScheduleInfo();
+        
         // Start timer for session cleanup
         llSetTimerEvent(300.0); // Check every 5 minutes
     }
@@ -129,6 +199,50 @@ default
         if (!isMessageForRose(message, link_id))
         {
             return;
+        }
+        
+        // Request current schedule info before processing
+        requestScheduleInfo();
+        
+        // Check if shouted (for sleep mode threshold)
+        integer is_shout = FALSE;
+        if (llGetSubString(message, -1, -1) == "!")
+        {
+            is_shout = TRUE;
+        }
+        
+        // Handle sleep mode (NIGHT period when not awake)
+        if (!period_is_awake)
+        {
+            integer mention_count = incrementMentionCount(link_id, is_shout);
+            if (mention_count < sleep_mention_threshold)
+            {
+                // Not enough mentions yet, ignore
+                return;
+            }
+            // Enough mentions - respond with sleepy confusion
+            llMessageLinked(LINK_SET, LINK_SPEAK, "huh? sorry, it's late, can this wait until tomorrow?", NULL_KEY);
+            resetMentionCount(link_id);
+            return;
+        }
+        
+        // Handle off-work mode (not at work but awake)
+        if (!period_at_work)
+        {
+            // Check if message seems work-related (simple keyword check)
+            string msg_lower = llToLower(message);
+            if (llSubStringIndex(msg_lower, "work") != -1 ||
+                llSubStringIndex(msg_lower, "job") != -1 ||
+                llSubStringIndex(msg_lower, "shift") != -1 ||
+                llSubStringIndex(msg_lower, "task") != -1 ||
+                llSubStringIndex(msg_lower, "report") != -1 ||
+                llSubStringIndex(msg_lower, "meeting") != -1)
+            {
+                // Work-related during off-hours
+                llMessageLinked(LINK_SET, LINK_SPEAK, "Sorry, I'm off the clock, can we chat about this tomorrow?", NULL_KEY);
+                return;
+            }
+            // Non-work chat is fine, continue normal processing
         }
         
         // Add speaker to conversation participants if not already there
@@ -201,6 +315,18 @@ default
             
             // Update last message time
             last_message_time = llGetUnixTime();
+        }
+        else if (num == LINK_SCHEDULE_INFO)
+        {
+            // Parse schedule info: "PERIOD|at_work|is_awake|threshold"
+            list parts = llParseString2List(msg, ["|"], []);
+            if (llGetListLength(parts) >= 4)
+            {
+                current_period = llList2String(parts, 0);
+                period_at_work = llList2Integer(parts, 1);
+                period_is_awake = llList2Integer(parts, 2);
+                sleep_mention_threshold = llList2Integer(parts, 3);
+            }
         }
     }
     
