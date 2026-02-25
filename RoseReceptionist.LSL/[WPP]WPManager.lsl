@@ -95,6 +95,15 @@ key sit_target_key = NULL_KEY;
 integer waiting_for_sit_sensor = FALSE;
 float buttOffset = 0.40;
 
+// Attachment system
+list attached_objects = [];  // [key, name, key, name, ...]
+key pending_rez_key = NULL_KEY;
+string pending_rez_name = "";
+vector pending_rez_pos = ZERO_VECTOR;
+rotation pending_rez_rot = ZERO_ROTATION;
+list rez_queue = [];  // [name, pos_x, pos_y, pos_z, rot_x, rot_y, rot_z, rot_s, ...]
+integer processing_rez = FALSE;
+
 // Schedule-based waypoint system
 string SHIFT_START_TIME = "09:00";
 string SHIFT_END_TIME = "17:00";
@@ -398,6 +407,9 @@ switchWaypointConfig(string period)
         }
         
         stopStandAnimation();
+        
+        // Detach any attached objects
+        detachAllObjects();
         
         if (current_state == "SITTING")
         {
@@ -770,6 +782,176 @@ list parseAnimationsList(string animStr)
     return result;
 }
 
+// Parse attachments list from JSON
+// Format: [{"item":"Clipboard","pos":"<0,0,1>","rot":"<0,0,0,1>"}]
+// Returns: [name, pos_x, pos_y, pos_z, rot_x, rot_y, rot_z, rot_s, ...]
+list parseAttachmentsList(string attachJson)
+{
+    list result = [];
+    
+    if (attachJson == "" || attachJson == "[]")
+    {
+        return result;
+    }
+    
+    // Remove outer brackets
+    if (llGetSubString(attachJson, 0, 0) == "[")
+    {
+        attachJson = llGetSubString(attachJson, 1, -2);
+    }
+    
+    // Split by },{ to get individual attachment objects
+    list attachments = llParseString2List(attachJson, ["},{"], []);
+    
+    integer i;
+    for (i = 0; i < llGetListLength(attachments); i++)
+    {
+        string obj = llList2String(attachments, i);
+        
+        // Remove leading/trailing braces
+        if (llGetSubString(obj, 0, 0) == "{") obj = llGetSubString(obj, 1, -1);
+        if (llGetSubString(obj, -1, -1) == "}") obj = llGetSubString(obj, 0, -2);
+        
+        // Extract item name
+        integer itemStart = llSubStringIndex(obj, "\"item\":\"");
+        if (itemStart == -1) continue;
+        itemStart += 8;
+        integer itemEnd = llSubStringIndex(llGetSubString(obj, itemStart, -1), "\"");
+        if (itemEnd == -1) continue;
+        string itemName = llGetSubString(obj, itemStart, itemStart + itemEnd - 1);
+        
+        // Check if item exists in inventory
+        if (llGetInventoryType(itemName) != INVENTORY_OBJECT)
+        {
+            debugSay("Attachment item not found: " + itemName);
+            continue;
+        }
+        
+        // Extract position
+        integer posStart = llSubStringIndex(obj, "\"pos\":\"");
+        if (posStart == -1) continue;
+        posStart += 7;
+        integer posEnd = llSubStringIndex(llGetSubString(obj, posStart, -1), "\"");
+        if (posEnd == -1) continue;
+        string posStr = llGetSubString(obj, posStart, posStart + posEnd - 1);
+        vector pos = (vector)posStr;
+        
+        // Extract rotation
+        integer rotStart = llSubStringIndex(obj, "\"rot\":\"");
+        if (rotStart == -1) continue;
+        rotStart += 7;
+        integer rotEnd = llSubStringIndex(llGetSubString(obj, rotStart, -1), "\"");
+        if (rotEnd == -1) continue;
+        string rotStr = llGetSubString(obj, rotStart, rotStart + rotEnd - 1);
+        rotation rot = (rotation)rotStr;
+        
+        // Add to result: name, pos.x, pos.y, pos.z, rot.x, rot.y, rot.z, rot.s
+        result += [itemName, pos.x, pos.y, pos.z, rot.x, rot.y, rot.z, rot.s];
+        
+        debugSay("Parsed attachment: " + itemName + " at " + (string)pos);
+    }
+    
+    return result;
+}
+
+// Queue attachments for rezzing
+queueAttachments(list attachments)
+{
+    if (llGetListLength(attachments) == 0)
+    {
+        return;
+    }
+    
+    // Add to queue
+    rez_queue += attachments;
+    
+    debugSay("Queued " + (string)(llGetListLength(attachments) / 8) + " attachments");
+    
+    // Start processing if not already
+    if (!processing_rez)
+    {
+        processRezQueue();
+    }
+}
+
+// Process next item in rez queue
+processRezQueue()
+{
+    if (llGetListLength(rez_queue) == 0)
+    {
+        processing_rez = FALSE;
+        debugSay("Rez queue empty");
+        return;
+    }
+    
+    processing_rez = TRUE;
+    
+    // Get next item: name, pos_x, pos_y, pos_z, rot_x, rot_y, rot_z, rot_s
+    pending_rez_name = llList2String(rez_queue, 0);
+    float px = llList2Float(rez_queue, 1);
+    float py = llList2Float(rez_queue, 2);
+    float pz = llList2Float(rez_queue, 3);
+    float rx = llList2Float(rez_queue, 4);
+    float ry = llList2Float(rez_queue, 5);
+    float rz = llList2Float(rez_queue, 6);
+    float rs = llList2Float(rez_queue, 7);
+    
+    pending_rez_pos = <px, py, pz>;
+    pending_rez_rot = <rx, ry, rz, rs>;
+    
+    // Remove from queue
+    rez_queue = llDeleteSubList(rez_queue, 0, 7);
+    
+    debugSay("Rezzing: " + pending_rez_name);
+    
+    // Rez object at temp position (2m above root)
+    vector root_pos = llGetPos();
+    llRezObject(pending_rez_name, root_pos + <0, 0, 2>, ZERO_VECTOR, ZERO_ROTATION, 0);
+}
+
+// Detach and cleanup all attached objects
+detachAllObjects()
+{
+    if (llGetListLength(attached_objects) == 0)
+    {
+        return;
+    }
+    
+    debugSay("Detaching " + (string)(llGetListLength(attached_objects) / 2) + " objects");
+    
+    integer i;
+    for (i = 0; i < llGetListLength(attached_objects); i += 2)
+    {
+        key obj_key = llList2Key(attached_objects, i);
+        string obj_name = llList2String(attached_objects, i + 1);
+        
+        // Find link number
+        integer link_num = llGetLinkNumber();
+        integer num_links = llGetNumberOfPrims();
+        integer j;
+        for (j = 1; j <= num_links; j++)
+        {
+            if (llGetLinkKey(j) == obj_key)
+            {
+                link_num = j;
+                break;
+            }
+        }
+        
+        if (link_num > 1)
+        {
+            debugSay("Unlinking: " + obj_name);
+            llBreakLink(link_num);
+        }
+    }
+    
+    attached_objects = [];
+    rez_queue = [];
+    processing_rez = FALSE;
+    pending_rez_key = NULL_KEY;
+    pending_rez_name = "";
+}
+
 // Count waypoints
 integer getWaypointCount()
 {
@@ -959,9 +1141,14 @@ processWaypoint(vector wpPos)
             switchStandAnimation();
         }
         
-        if (attachments_json != "")
+        // Process attachments
+        if (attachments_json != "" && attachments_json != "[]")
         {
-            llMessageLinked(LINK_SET, 0, "ATTACHMENTS:" + attachments_json, NULL_KEY);
+            list parsed_attachments = parseAttachmentsList(attachments_json);
+            if (llGetListLength(parsed_attachments) > 0)
+            {
+                queueAttachments(parsed_attachments);
+            }
         }
         
         float timer_interval = (float)STAND_ANIMATION_INTERVAL;
@@ -986,6 +1173,16 @@ processWaypoint(vector wpPos)
             llMessageLinked(LINK_SET, 0, "PLAY_ANIM:" + activity_animation, NULL_KEY);
         }
         
+        // Process attachments
+        if (attachments_json != "" && attachments_json != "[]")
+        {
+            list parsed_attachments = parseAttachmentsList(attachments_json);
+            if (llGetListLength(parsed_attachments) > 0)
+            {
+                queueAttachments(parsed_attachments);
+            }
+        }
+        
         updateState("SITTING");
         
         if (activity_duration > 0)
@@ -997,6 +1194,9 @@ processWaypoint(vector wpPos)
 
 moveToNextWaypoint()
 {
+    // Detach any attached objects
+    detachAllObjects();
+    
     // Notify Reporter that activity completed
     if (current_activity_name != "" && current_activity_name != "idle")
     {
@@ -1187,6 +1387,9 @@ default
     state_entry()
     {
         debugSay("Waypoint Manager ready");
+        
+        // Cleanup any previous attachments
+        detachAllObjects();
         
         // Initialize watchdog timer
         last_state_change_time = llGetUnixTime();
@@ -1712,6 +1915,76 @@ default
             waiting_for_sit_sensor = FALSE;
             llSensorRemove();
         }
+    }
+    
+    object_rez(key id)
+    {
+        // This event fires when we rez an object
+        if (pending_rez_name == "")
+        {
+            debugSay("Unexpected object_rez event");
+            return;
+        }
+        
+        debugSay("Object rezzed: " + pending_rez_name + " (" + (string)id + ")");
+        
+        // Link the rezzed object as a child prim
+        llCreateLink(id, TRUE);
+        
+        // Wait a moment for link to complete
+        llSleep(0.5);
+        
+        // Find the link number of the newly linked object
+        integer link_num = -1;
+        integer num_links = llGetNumberOfPrims();
+        integer i;
+        for (i = 1; i <= num_links; i++)
+        {
+            if (llGetLinkKey(i) == id)
+            {
+                link_num = i;
+                break;
+            }
+        }
+        
+        if (link_num == -1)
+        {
+            debugSay("Failed to find link for " + pending_rez_name);
+            processRezQueue();
+            return;
+        }
+        
+        debugSay("Linked as #" + (string)link_num);
+        
+        // Position and rotate the linked object relative to root
+        vector root_pos = llGetPos();
+        rotation root_rot = llGetRot();
+        
+        // Calculate world position
+        vector world_pos = root_pos + pending_rez_pos * root_rot;
+        
+        // Calculate world rotation
+        rotation world_rot = pending_rez_rot * root_rot;
+        
+        // Set position and rotation
+        llSetLinkPrimitiveParamsFast(link_num, [
+            PRIM_POSITION, world_pos,
+            PRIM_ROTATION, world_rot
+        ]);
+        
+        debugSay("Positioned at " + (string)pending_rez_pos);
+        
+        // Add to tracking list
+        attached_objects += [id, pending_rez_name];
+        
+        // Clear pending state
+        pending_rez_key = NULL_KEY;
+        pending_rez_name = "";
+        pending_rez_pos = ZERO_VECTOR;
+        pending_rez_rot = ZERO_ROTATION;
+        
+        // Process next item in queue
+        processRezQueue();
     }
     
     changed(integer change)
