@@ -105,7 +105,7 @@ sendActivityBatch()
         [HTTP_METHOD, "POST",
          HTTP_MIMETYPE, "application/json",
          HTTP_CUSTOM_HEADER, "X-API-Key", (string)SUBSCRIBER_KEY,
-         HTTP_BODY_MAXLENGTH, 16384],
+         HTTP_BODY_MAXLENGTH, 16000],
         json);
     
     pending_activities = [];

@@ -106,6 +106,19 @@ integer shift_end_announced = FALSE;  // Track if we've said goodbye
 integer schedule_transition_teleport = FALSE;  // Flag to teleport after config load
 integer timezone_offset = -8; //default to SLT
 
+// Schedule Period Behavior Flags (for schedule-aware chat)
+integer work_at_work = TRUE;
+integer work_is_awake = TRUE;
+integer afterwork_at_work = FALSE;
+integer afterwork_is_awake = TRUE;
+integer night_at_work = FALSE;
+integer night_is_awake = FALSE;
+integer sleep_mention_threshold = 3;
+
+// Link message constants for schedule info
+integer LINK_GET_SCHEDULE_INFO = 5000;  // Request schedule info
+integer LINK_SCHEDULE_INFO = 5001;      // Response with schedule info
+
 // Config notecards for different periods
 string WORK_CONFIG = "[WPP]WaypointConfig";
 string AFTER_WORK_CONFIG = "[WPP]AfterWorkConfig";
@@ -1419,6 +1432,33 @@ default
             // Send status back to Main via link message
             llMessageLinked(LINK_SET, LINK_DEBUG_STATUS_RESPONSE, status, NULL_KEY);
         }
+        else if (num == LINK_GET_SCHEDULE_INFO)
+        {
+            // Respond with schedule period info for chat script
+            string period = getCurrentSchedulePeriod();
+            integer at_work = FALSE;
+            integer is_awake = FALSE;
+            
+            if (period == "WORK")
+            {
+                at_work = work_at_work;
+                is_awake = work_is_awake;
+            }
+            else if (period == "AFTER_WORK")
+            {
+                at_work = afterwork_at_work;
+                is_awake = afterwork_is_awake;
+            }
+            else // NIGHT
+            {
+                at_work = night_at_work;
+                is_awake = night_is_awake;
+            }
+            
+            // Format: "PERIOD|at_work|is_awake|threshold"
+            string response = period + "|" + (string)at_work + "|" + (string)is_awake + "|" + (string)sleep_mention_threshold;
+            llMessageLinked(LINK_SET, LINK_SCHEDULE_INFO, response, NULL_KEY);
+        }
     }
     
     dataserver(key query_id, string data)
@@ -1497,6 +1537,35 @@ default
                             else if (configKey == "TIMEZONE_OFFSET")
                             {
                                 timezone_offset = (integer)value;
+                            }
+                            else if (configKey == "WORK_AT_WORK")
+                            {
+                                work_at_work = (value == "TRUE" || value == "true" || value == "1");
+                            }
+                            else if (configKey == "WORK_IS_AWAKE")
+                            {
+                                work_is_awake = (value == "TRUE" || value == "true" || value == "1");
+                            }
+                            else if (configKey == "AFTERWORK_AT_WORK")
+                            {
+                                afterwork_at_work = (value == "TRUE" || value == "true" || value == "1");
+                            }
+                            else if (configKey == "AFTERWORK_IS_AWAKE")
+                            {
+                                afterwork_is_awake = (value == "TRUE" || value == "true" || value == "1");
+                            }
+                            else if (configKey == "NIGHT_AT_WORK")
+                            {
+                                night_at_work = (value == "TRUE" || value == "true" || value == "1");
+                            }
+                            else if (configKey == "NIGHT_IS_AWAKE")
+                            {
+                                night_is_awake = (value == "TRUE" || value == "true" || value == "1");
+                            }
+                            else if (configKey == "SLEEP_MENTION_THRESHOLD")
+                            {
+                                sleep_mention_threshold = (integer)value;
+                                if (sleep_mention_threshold < 1) sleep_mention_threshold = 3;
                             }
                         }
                     }

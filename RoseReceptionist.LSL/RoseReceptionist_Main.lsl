@@ -218,7 +218,7 @@ checkMasterKeyAndShowMenu(key toucher, string name)
     key http_request_id = llHTTPRequest(url,
         [HTTP_METHOD, "GET",
          HTTP_CUSTOM_HEADER, "X-API-Key", (string)SUBSCRIBER_KEY,
-         HTTP_BODY_MAXLENGTH, 16384],
+         HTTP_BODY_MAXLENGTH, 16000],
         "");
     
     // Store toucher info with request for thread-safety
@@ -231,7 +231,7 @@ sendSystemRequest(string endpoint, string method, string json)
     
     list params = [HTTP_METHOD, method,
                    HTTP_CUSTOM_HEADER, "X-API-Key", (string)SUBSCRIBER_KEY,
-                   HTTP_BODY_MAXLENGTH, 16384];
+                   HTTP_BODY_MAXLENGTH, 16000];
     
     // Always set Content-Type for PUT/POST requests
     if (method == "PUT" || method == "POST")
@@ -268,7 +268,7 @@ sendArrivalRequest(string avatarKey, string avatarName, string location)
         [HTTP_METHOD, "POST",
          HTTP_MIMETYPE, "application/json",
          HTTP_CUSTOM_HEADER, "X-API-Key", (string)SUBSCRIBER_KEY,
-         HTTP_BODY_MAXLENGTH, 16384],
+         HTTP_BODY_MAXLENGTH, 16000],
         json);
     
     http_requests += [http_request_id, "arrival", avatarKey];
@@ -323,7 +323,7 @@ sendChatRequest(string avatarKey, string avatarName, string message, string sess
         [HTTP_METHOD, "POST",
          HTTP_MIMETYPE, "application/json",
          HTTP_CUSTOM_HEADER, "X-API-Key", (string)SUBSCRIBER_KEY,
-         HTTP_BODY_MAXLENGTH, 16384],
+         HTTP_BODY_MAXLENGTH, 16000],
         json);
     
     http_requests += [http_request_id, "chat", avatarKey];

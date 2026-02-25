@@ -61,6 +61,20 @@ TIMEZONE_OFFSET=-8
 # Night activities run from NIGHT_START_TIME until next SHIFT_START_TIME
 NIGHT_START_TIME=22:00
 
+# Schedule Period Behavior Configuration
+# Controls how Rose responds during different periods
+# WORK period: at_work=TRUE, is_awake=TRUE (normal proactive behavior)
+# AFTER_WORK period: at_work=FALSE, is_awake=TRUE (no work discussions)
+# NIGHT period: at_work=FALSE, is_awake=FALSE (sleeping, requires threshold to respond)
+WORK_AT_WORK=TRUE
+WORK_IS_AWAKE=TRUE
+AFTERWORK_AT_WORK=FALSE
+AFTERWORK_IS_AWAKE=TRUE
+NIGHT_AT_WORK=FALSE
+NIGHT_IS_AWAKE=FALSE
+# Number of mentions required to wake Rose during sleep (NIGHT period)
+SLEEP_MENTION_THRESHOLD=3
+
 # Detection and Greeting
 GREETING_RANGE=10
 CHAT_RANGE=20
