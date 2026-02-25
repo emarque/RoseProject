@@ -362,7 +362,7 @@ switchWaypointConfig(string period)
     
     if (new_config != active_config_name)
     {
-        llOwnerSay("Switching to " + period + " waypoint config: " + new_config);
+        debugSay("Switching to " + period + " waypoint config: " + new_config);
         
         // Stop current activity
         if (activity_animation != "")
@@ -496,7 +496,7 @@ checkWatchdog()
     
     if (time_in_state > WATCHDOG_TIMEOUT)
     {
-        llOwnerSay("⚠️ WATCHDOG: Stuck in " + current_state + " for " + (string)time_in_state + "s - forcing next waypoint");
+        debugSay("⚠️ WATCHDOG: Stuck in " + current_state + " for " + (string)time_in_state + "s - forcing next waypoint");
         
         // Stop any animations
         if (activity_animation != "")
@@ -668,7 +668,7 @@ toggleWander()
     {
         status = "disabled";
     }
-    llOwnerSay("Wandering " + status);
+    debugSay("Wandering " + status);
     
     if (!wander_enabled)
     {
@@ -924,7 +924,7 @@ processWaypoint(vector wpPos)
     }
     else if (activity_type == "linger")
     {
-        llOwnerSay("Activity: " + current_activity_name + " (" + (string)activity_duration + "s)");
+        debugSay("Activity: " + current_activity_name + " (" + (string)activity_duration + "s)");
         
         // Face direction if specified - apply rotation around Z-axis only to keep upright
         if (activity_orientation != -1)
@@ -961,7 +961,7 @@ processWaypoint(vector wpPos)
     }
     else if (activity_type == "sit")
     {
-        llOwnerSay("Activity: " + current_activity_name + " (" + (string)activity_duration + "s)");
+        debugSay("Activity: " + current_activity_name + " (" + (string)activity_duration + "s)");
         
         // Find closest prim labeled "sit"
         waiting_for_sit_sensor = TRUE;
@@ -1216,7 +1216,7 @@ default
             
             if (elapsed >= MAX_ACTIVITY_DURATION)
             {
-                llOwnerSay("Activity timeout: " + current_activity_name);
+                debugSay("Activity timeout: " + current_activity_name);
                 if (activity_animation != "")
                 {
                     llMessageLinked(LINK_SET, 0, "STOP_ANIM:" + activity_animation, NULL_KEY);
@@ -1237,7 +1237,7 @@ default
             }
             else if (elapsed >= activity_duration)
             {
-                llOwnerSay("Activity done: " + current_activity_name);
+                debugSay("Activity done: " + current_activity_name);
                 
                 if (activity_animation != "")
                 {
@@ -1591,7 +1591,7 @@ default
                 loading_config = FALSE;  // Clear flag - load complete
                 integer configCount = getWaypointCount();
                 integer listLen = llGetListLength(waypoint_configs);
-                llOwnerSay((string)configCount + " waypoints (list len=" + (string)listLen + ")");
+                debugSay((string)configCount + " waypoints (list len=" + (string)listLen + ")");
                 moveToNextWaypoint();
             }
         }
